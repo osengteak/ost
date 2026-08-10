@@ -1,0 +1,77 @@
+name: Build Miner Mod
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Fabric 26.2 Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Gradle 9.5.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.5.1'
+
+      - name: Show build environment
+        shell: bash
+        run: |
+          java -version 2>&1 | tee environment.log
+          gradle --version 2>&1 | tee -a environment.log
+
+      - name: Build Fabric mod
+        id: gradle_build
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle --no-daemon --stacktrace clean build 2>&1 | tee build-output.log
+
+      - name: Collect installable JAR
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          JAR="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-sources.jar' ! -name '*-dev.jar' | head -n 1)"
+          if [ -z "$JAR" ]; then
+            echo "No installable JAR found in build/libs" | tee -a build-output.log
+            exit 1
+          fi
+          cp "$JAR" dist/central-economy-miner-0.5.0.jar
+          echo "Installable JAR: $JAR" | tee -a build-output.log
+          sha256sum dist/central-economy-miner-0.5.0.jar | tee dist/SHA256.txt
+
+      - name: Upload installable JAR
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: central-economy-miner-jar
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: central-economy-miner-build-log
+          path: |
+            build-output.log
+            environment.log
+          if-no-files-found: warn
+          retention-days: 14

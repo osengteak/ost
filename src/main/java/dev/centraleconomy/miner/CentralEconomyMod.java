@@ -1,0 +1,33 @@
+package dev.centraleconomy.miner;
+
+import dev.centraleconomy.miner.command.CentralEconomyCommands;
+import dev.centraleconomy.miner.market.MinerMarketRuntime;
+import dev.centraleconomy.miner.net.MinerMarketNetworking;
+import dev.centraleconomy.miner.villager.MinerEmploymentService;
+import dev.centraleconomy.miner.villager.ModPoiTypes;
+import dev.centraleconomy.miner.villager.ModVillagerProfessions;
+import net.fabricmc.api.ModInitializer;
+import net.minecraft.resources.Identifier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public final class CentralEconomyMod implements ModInitializer {
+    public static final String MOD_ID = "central_economy";
+    public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+
+    public static Identifier id(String path) {
+        return Identifier.fromNamespaceAndPath(MOD_ID, path);
+    }
+
+    @Override
+    public void onInitialize() {
+        // Registration order matters: workstation POI -> profession -> data/runtime -> packets/events/commands.
+        ModPoiTypes.initialize();
+        ModVillagerProfessions.initialize();
+        MinerMarketRuntime.reload();
+        MinerMarketNetworking.initialize();
+        MinerEmploymentService.initialize();
+        CentralEconomyCommands.initialize();
+        LOGGER.info("Central Economy Miner GitHub build source 0.5 initialized");
+    }
+}

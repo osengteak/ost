@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "source_model": "Minecraft central-planning v4",
+  "planning_cycle_days": 7,
+  "commodities": {
+    "minecraft:coal": {
+      "procurement_a": {"lot_items": 10, "emeralds": 1, "planned_quantity": 27.75478686342593, "base_uses": 2, "extra_use_probability": 0.7754786863425931},
+      "procurement_b": {"lot_items": 29, "emeralds": 2, "planned_quantity": 22.708461979166668, "base_uses": 0, "extra_use_probability": 0.7830504130747127},
+      "retail": {"lot_items": 26, "emeralds": 3, "uses": 3, "activation_probability": 1.0, "gate": "none"}
+    },
+    "minecraft:raw_copper": {
+      "procurement_a": {"lot_items": 16, "emeralds": 1, "planned_quantity": 1.1, "base_uses": 0, "extra_use_probability": 0.06875},
+      "procurement_b": {"lot_items": 23, "emeralds": 1, "planned_quantity": 0.9, "base_uses": 0, "extra_use_probability": 0.03913043478260869}
+    },
+    "minecraft:copper_ingot": {
+      "procurement_a": {"lot_items": 12, "emeralds": 1, "planned_quantity": 11.238562500000002, "base_uses": 0, "extra_use_probability": 0.9365468750000002},
+      "procurement_b": {"lot_items": 35, "emeralds": 2, "planned_quantity": 9.195187500000001, "base_uses": 0, "extra_use_probability": 0.2627196428571429},
+      "retail": {"lot_items": 31, "emeralds": 3, "uses": 2, "activation_probability": 1.0, "gate": "none"}
+    },
+    "minecraft:raw_iron": {
+      "procurement_a": {"lot_items": 9, "emeralds": 2, "planned_quantity": 8.047873714953273, "base_uses": 0, "extra_use_probability": 0.8942081905503636},
+      "procurement_b": {"lot_items": 13, "emeralds": 2, "planned_quantity": 6.584623948598131, "base_uses": 0, "extra_use_probability": 0.5065095345075485}
+    },
+    "minecraft:iron_ingot": {
+      "procurement_a": {"lot_items": 15, "emeralds": 4, "planned_quantity": 7.998489187598119, "base_uses": 0, "extra_use_probability": 0.5332326125065412},
+      "procurement_b": {"lot_items": 11, "emeralds": 2, "planned_quantity": 6.5442184262166405, "base_uses": 0, "extra_use_probability": 0.5949289478378764},
+      "retail": {"lot_items": 13, "emeralds": 4, "uses": 2, "activation_probability": 1.0, "gate": "none"}
+    },
+    "minecraft:redstone": {
+      "procurement_a": {"lot_items": 18, "emeralds": 1, "planned_quantity": 19.239284821428573, "base_uses": 1, "extra_use_probability": 0.06884915674603187},
+      "procurement_b": {"lot_items": 26, "emeralds": 1, "planned_quantity": 15.741233035714284, "base_uses": 0, "extra_use_probability": 0.6054320398351648},
+      "retail": {"lot_items": 31, "emeralds": 2, "uses": 3, "activation_probability": 1.0, "gate": "market_warehouse"}
+    },
+    "minecraft:lapis_lazuli": {
+      "procurement_a": {"lot_items": 7, "emeralds": 1, "planned_quantity": 12.485952678571433, "base_uses": 1, "extra_use_probability": 0.7837075255102046},
+      "procurement_b": {"lot_items": 21, "emeralds": 2, "planned_quantity": 10.215779464285717, "base_uses": 0, "extra_use_probability": 0.48646568877551033},
+      "retail": {"lot_items": 6, "emeralds": 1, "uses": 8, "activation_probability": 1.0, "gate": "market_warehouse"}
+    },
+    "minecraft:raw_gold": {
+      "procurement_a": {"lot_items": 29, "emeralds": 15, "planned_quantity": 3.23189692353644, "base_uses": 0, "extra_use_probability": 0.11144472150125656},
+      "procurement_b": {"lot_items": 17, "emeralds": 6, "planned_quantity": 2.644279301075269, "base_uses": 0, "extra_use_probability": 0.1555458412397217}
+    },
+    "minecraft:gold_ingot": {
+      "procurement_a": {"lot_items": 9, "emeralds": 5, "planned_quantity": 3.2217832270795395, "base_uses": 0, "extra_use_probability": 0.35797591411994883},
+      "procurement_b": {"lot_items": 13, "emeralds": 5, "planned_quantity": 2.636004458519623, "base_uses": 0, "extra_use_probability": 0.2027695737322787},
+      "retail": {"lot_items": 11, "emeralds": 7, "uses": 2, "activation_probability": 1.0, "gate": "regional_trade_route_or_50e_turnover"}
+    },
+    "minecraft:diamond": {
+      "procurement_a": {"lot_items": 2, "emeralds": 9, "planned_quantity": 0.11587762237762239, "base_uses": 0, "extra_use_probability": 0.057938811188811196},
+      "procurement_b": {"lot_items": 1, "emeralds": 4, "planned_quantity": 0.028969405594405587, "base_uses": 0, "extra_use_probability": 0.028969405594405587},
+      "retail": {"lot_items": 3, "emeralds": 17, "uses": 1, "activation_probability": 0.53, "gate": "mineral_warehouse_and_150e_turnover"}
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "central_economy",
+  "version": "${version}",
+  "name": "Central Economy - Miner",
+  "description": "Miner-only playable vertical slice for Minecraft 26.2: chiseled-quartz employment, visible miner badge, A/B procurement, shared retail stock, persistence and searchable market UI.",
+  "authors": [
+    "OpenAI-assisted project"
+  ],
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "dev.centraleconomy.miner.CentralEconomyMod"
+    ],
+    "client": [
+      "dev.centraleconomy.miner.client.CentralEconomyClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "~26.2",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}
