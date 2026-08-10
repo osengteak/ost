@@ -12,11 +12,11 @@ import dev.centraleconomy.miner.plan.MarketPlan;
 import dev.centraleconomy.miner.villager.MinerEmploymentService;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.chat.Component;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.npc.WanderingTrader;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -157,8 +157,13 @@ public final class MinerMarketTransactions {
             String marketId = MinerEmploymentService.activeMarket(level, villager);
             return marketId == null ? null : new Endpoint(villager, marketId);
         }
-        if (entity instanceof WanderingTrader trader) return new Endpoint(trader, "wandering_trader");
+        if (isWanderingTrader(entity)) return new Endpoint(entity, "wandering_trader");
         return null;
+    }
+
+    private static boolean isWanderingTrader(Entity entity) {
+        var id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+        return id != null && "minecraft:wandering_trader".equals(id.toString());
     }
 
     private static int count(ServerPlayer player, Item item) {

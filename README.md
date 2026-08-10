@@ -1,78 +1,41 @@
-# Central Economy 1.0.0
+# Central Economy
 
-Minecraft Java Edition **26.2** / Fabric complete profession-market build.
+Minecraft Java Edition 26.2 / Fabric economy-expansion mod.
 
-This project generalizes the runtime-proven Miner v0.6.1 vertical slice into one shared central-planning economy engine. Ten player-placeable profession workstations use the custom 16×16 workstation art set; the vanilla Wandering Trader is the eleventh miscellaneous market endpoint.
+This project generalizes the proven miner vertical slice into one shared central-market engine for ten workstation professions plus the vanilla Wandering Trader miscellaneous market.
 
-## Final market roster
+## Markets
 
-| Market | Workstation | Final scope |
-|---|---|---|
-| 농부 | 농산물 작업대 | crops and food |
-| 목축업자 | 축산 작업대 | meat, leather, eggs, bone |
-| 어부 | 수산물 작업대 | four live fish buckets, axolotl bucket, cooked cod/salmon |
-| 광부 | 광물 작업대 | coal, copper/iron/gold ingots, redstone, lapis, diamond; **no raw ores** |
-| 벌목꾼 | 벌목 작업대 | overworld logs plus crimson/warped stems |
-| 석공 | 석재 작업대 | brick/stone-brick family, including 26.2 cinnabar/sulfur bricks |
-| 화살 제조인 | 궁시 작업대 | arrows, spectral arrows, potion-tipped arrow variants |
-| 사서 | 마법서 작업대 | configured enchanted book catalog, all levels including Lunge I–III |
-| 성직자 | 연금 작업대 | brewing ingredients/fuel and potion/splash/lingering variants |
-| 떠돌이 상인 | 없음 | miscellaneous goods not assigned to a workstation profession |
-| 지도제작자 | 제도 작업대 | paper, string, book-and-quill, map |
+- Farmer — crops and food
+- Rancher — meat, leather, eggs and bone
+- Fisher — live fish buckets, axolotl bucket and cooked fish
+- Miner — processed/use-ready minerals and metal ingots
+- Lumberjack — logs and stems
+- Mason — brick/stone-brick building materials
+- Fletcher — arrows and tipped arrows
+- Librarian — configured enchanted-book variants
+- Cleric — configured potions and brewing ingredients
+- Cartographer — paper, string, book-and-quill and maps
+- Wandering Trader — miscellaneous goods outside the other categories
 
-The bundled schema-3 plan currently contains **430 market rows**. Prices, quotas, gates, activation chances and stock are data-driven in `data/central_economy/economy/economy_plan.json` and are copied to `config/central_economy/economy_plan.json` on first run.
+## Employment model
 
-## Employment contract
+The ten normal professions use custom Central Economy workstation blocks. A workstation can be claimed by only one villager. The persisted workstation claim is the authoritative employment state; breaking or replacing the claimed workstation releases the claim and returns the mod-employed villager to unemployed state.
 
-Every custom profession uses the same proven contract model:
+The Wandering Trader has no workstation. In v1.0.1 it is detected by the stable entity registry id `minecraft:wandering_trader`, avoiding dependence on a concrete Minecraft NPC class package.
 
-- adult unemployed villager + nearby unclaimed profession workstation → one-time employment;
-- server persists `villager UUID ↔ market id ↔ dimension ↔ workstation position`;
-- one workstation can belong to only one villager;
-- a valid claim is stable and is not re-applied every second;
-- breaking or replacing the assigned workstation releases the villager to unemployed and removes the mod-owned `[직업명]` badge;
-- manually/custom-profession spawned villagers can attach to a matching free workstation;
-- Wandering Trader needs no workstation and opens the miscellaneous market directly.
+## Economy model
 
-## Central market rules
+- 7 Minecraft-day planning cycle
+- per-player procurement quota: player UUID × market × commodity × cycle
+- A livelihood procurement tier followed by lower industrial B tier
+- shared server retail stock per market/commodity
+- server-authoritative inventory and emerald transactions
+- external economy JSON plan
+- responsive searchable/favorite-aware market screen with vertical scrolling
 
-- One shared responsive/searchable/favorite-aware UI is used by all eleven markets.
-- Large catalogs such as librarian and cleric use bounded vertical mouse-wheel scrolling; horizontal scrolling is not required.
-- Procurement quotas are keyed by **player UUID × market × commodity × planning cycle**, so adding more villagers does not multiply a player's quota.
-- Retail stock is central server state shared by every endpoint of the same market.
-- The planning cycle is **7 Minecraft days (168,000 ticks)**.
-- Procurement uses livelihood **A** and industrial **B** tiers.
-- The client only requests a transaction. The server re-validates endpoint, distance, market membership, inventory, emeralds, quota, gate and stock before committing.
-- Special configured stacks (enchanted books, potions and tipped arrows) are constructed server-side and are retail-only in this version.
-- Persistent state stores cycle, quotas, shared stock, cumulative turnover, infrastructure flags and workstation claims.
+## Build
 
-## Workstation resources
+Push the source to the existing GitHub repository. GitHub Actions runs project validation, pure self-tests, and then a real Fabric/Loom `clean build` using Java 25 and Gradle 9.5.1. On success, download the `central-economy-jar` artifact and install only the produced `central-economy-1.0.1.jar` alongside Fabric API.
 
-The workstation visuals are embedded in the mod JAR; no separate resource pack is required. Each of the ten workstations has exact 16×16 front/top/detail textures, blockstate/model/item-model JSON, loot table, recipe and Korean/English translations.
-
-`WORKSTATION_TEXTURE_PREVIEW.png` is included as a quick QA preview of the game-ready texture faces.
-
-## Compatibility / migration
-
-The mod id stays `central_economy`, so worlds from the Miner prototype can reuse the saved central ledger. Old v0.6.x stock/quota/claim records that lack a market id are migrated into the `miner` market on load.
-
-The old bundled `miner_plan.json` path is overwritten by a harmless deprecation marker. Runtime uses only `economy_plan.json`. If a user config has an older schema, it is backed up as `economy_plan.schema<old>.backup.json` before schema 3 is installed.
-
-The v1.0 miner workstation is the custom **광물 작업대**, not the old chiseled-quartz prototype workstation. An old claim therefore becomes invalid and the villager returns to unemployed until a new workstation is placed.
-
-## Build and validation
-
-GitHub Actions runs these gates in order:
-
-1. `python3 tools/validate_project.py`
-2. `bash tools/run_core_self_test.sh`
-3. real Fabric/Loom `gradle --no-daemon --stacktrace clean build`
-4. package `central-economy-1.0.0.jar` as artifact `central-economy-jar`
-
-The validator checks all market/resource files, 16×16 texture dimensions, workstation/POI/profession wiring, employment release invariants, special-stack support, catalog coverage, A/B rules, direct same-item and cross-market arbitrage, responsive UI and trade diagnostics.
-
-## Runtime acceptance test
-
-Use a new creative test world first. For each of the ten workstations, place it near one adult unemployed villager, confirm the correct gold profession badge, open that market, test at least one valid sell and buy, then break the exact workstation and confirm the villager becomes unemployed. Also test a Wandering Trader, a librarian enchanted book, a cleric potion, a fletcher tipped arrow, and persistence across save/restart.
-
-A green GitHub Actions build proves real 26.2 compilation plus the included deterministic tests. Actual in-game behavior still has to pass the runtime acceptance test on the target client/server.
+v1.0.1 specifically fixes the four v1.0.0 compile errors caused by the obsolete/relocated `WanderingTrader` Java class reference. A green GitHub Actions build is still required before runtime success is claimed.

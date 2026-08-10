@@ -1,24 +1,23 @@
-# Central Economy 1.0.0 build status
+# Central Economy v1.0.1 build status
 
-Prepared source status before GitHub Actions:
+Prepared source status before the next GitHub Actions run:
 
-- Full source/resource invariant validator: **PASS**
-- Pure multi-market central-economy engine self-test: **PASS**
-- Pure responsive-layout/generic-request self-test: **PASS**
-- Economy plan schema 3 / 11 markets / 430 rows / 7-day cycle: **PASS**
-- Ten workstation block resources and 30 exact 16×16 textures: **PASS**
-- 1:1 persisted employment + workstation-break unemployment source invariants: **PASS**
-- Server-authoritative market membership/proximity/trade checks: **PASS**
-- Miner raw ores excluded; approved seven-item miner catalog retained: **PASS**
-- Fisher live fish/axolotl + cooked-fish coverage: **PASS**
-- Librarian 128 book variants including Lunge I–III: **PASS**
-- Cleric 17 ingredient/fuel rows + 135 potion/splash/lingering rows: **PASS**
-- Fletcher arrow + spectral arrow + 45 tipped-arrow variants: **PASS**
-- Minecraft 26.2 Cinnabar Bricks / Sulfur Bricks included in Mason: **PASS**
-- Same-row direct buy→sell arbitrage: **0 violations**
-- Cross-market direct buy→sell arbitrage: **0 violations**
-- Responsive width / vertical scrolling static and pure tests: **PASS**
-- Actual Minecraft 26.2 Fabric/Loom compilation: **PENDING GitHub Actions**
-- Full in-game runtime acceptance test: **PENDING target game test**
+- Full project/source invariant validator: PASS
+- Pure central-economy engine self-test: PASS
+- Pure responsive-layout/request self-test: PASS
+- 10 custom workstation resources and 11 market definitions: PASS
+- Workstation 1:1 claim / break-to-unemployed invariants: PASS
+- Market-qualified per-player A/B procurement quotas: PASS
+- Shared retail-stock / 7-day cycle invariants: PASS
+- Raw copper/iron/gold excluded from miner trading: PASS
+- Cross-market direct same-item arbitrage checks: PASS
+- Responsive width / vertical scroll source checks: PASS
+- Enchanted-book, potion and tipped-arrow factory paths: present and statically validated
+- Previous v1.0.0 compile blocker (`net.minecraft.world.entity.npc.WanderingTrader`): removed from production source
+- Wandering Trader is now detected by the stable registry id `minecraft:wandering_trader`
+- Actual Minecraft 26.2 Fabric/Loom compilation of v1.0.1: PENDING the next GitHub Actions run
+- Actual in-game full-system runtime test: PENDING after a green build
 
-Do not interpret this file as claiming the final JAR has already run inside Minecraft. The next hard gate is a green GitHub Actions build, followed by the runtime checklist in `README.md`.
+The previous GitHub compiler output reported exactly four errors, all caused by the concrete `WanderingTrader` class import/type checks. v1.0.1 removes those four class references rather than guessing a replacement package path.
+
+Do not treat this file as claiming a green Fabric build before GitHub Actions actually returns one.

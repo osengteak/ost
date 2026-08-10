@@ -1,0 +1,10 @@
+Central Economy v1.0.1 patch
+
+Fixes the v1.0.0 GitHub Actions compile failure:
+- removes import/type dependency on net.minecraft.world.entity.npc.WanderingTrader
+- detects the vanilla Wandering Trader using the stable entity registry id minecraft:wandering_trader
+- updates validation so the obsolete class path cannot be reintroduced unnoticed
+- bumps mod/artifact version to 1.0.1
+
+Apply by extracting this ZIP over the root of the existing ost repository and allowing overwrite.
+Then commit and push. GitHub Actions must still be green before the JAR is treated as build-verified.

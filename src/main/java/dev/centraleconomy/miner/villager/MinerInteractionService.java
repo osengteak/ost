@@ -6,8 +6,8 @@ import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
-import net.minecraft.world.entity.npc.WanderingTrader;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 /** One server-authoritative interaction entrypoint for every Central Economy market endpoint. */
 public final class MinerInteractionService {
@@ -28,15 +28,26 @@ public final class MinerInteractionService {
                 return InteractionResult.SUCCESS;
             }
 
-            if (entity instanceof WanderingTrader trader) {
+            if (isWanderingTrader(entity)) {
                 CentralEconomyMod.LOGGER.info("[CE-MARKET] interact player={} wanderingTrader={}",
-                        serverPlayer.getGameProfile().name(), trader.getUUID());
-                MinerMarketTransactions.open(serverPlayer, trader.getId());
+                        serverPlayer.getGameProfile().name(), entity.getUUID());
+                MinerMarketTransactions.open(serverPlayer, entity.getId());
                 return InteractionResult.SUCCESS;
             }
 
             return InteractionResult.PASS;
         });
         CentralEconomyMod.LOGGER.info("[CE-MARKET] server villager/wandering-trader interaction hook registered");
+    }
+
+    /**
+     * Do not reference the concrete wandering-trader Java class here. Minecraft 26.2
+     * moved NPC implementation classes, while the stable registry identity remains
+     * minecraft:wandering_trader. Using the registry id keeps this endpoint resilient
+     * to package/class moves and works for the generic Entity supplied by the callback.
+     */
+    private static boolean isWanderingTrader(net.minecraft.world.entity.Entity entity) {
+        var id = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+        return id != null && "minecraft:wandering_trader".equals(id.toString());
     }
 }

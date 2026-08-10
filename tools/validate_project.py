@@ -45,15 +45,15 @@ mod = text("src/main/java/dev/centraleconomy/miner/CentralEconomyMod.java")
 require("minecraft_version=26.2" in props, "targets Minecraft 26.2")
 require("loader_version=0.19.3" in props, "targets Fabric Loader 0.19.3")
 require("fabric_api_version=0.156.0+26.2" in props, "targets Fabric API 0.156.0+26.2")
-require("mod_version=1.0.0" in props, "project version is 1.0.0")
+require("mod_version=1.0.1" in props, "project version is 1.0.1")
 require("archives_base_name=central-economy" in props, "archive base name is central-economy")
 require("rootProject.name = 'central-economy'" in settings, "Gradle project uses final Central Economy name")
 require(mod_json["id"] == "central_economy" and mod_json["name"] == "Central Economy", "Fabric metadata uses final mod identity")
-require("Central Economy 1.0.0 initialized" in mod, "runtime logs final 1.0.0 initialization")
+require("Central Economy 1.0.1 initialized" in mod, "runtime logs final 1.0.1 initialization")
 require("Validate full project and economy invariants" in workflow, "CI runs full project validation")
 require("Run pure economy UI and request self-tests" in workflow, "CI runs pure self-tests")
 require("gradle --no-daemon --stacktrace clean build" in workflow, "CI performs real Fabric/Loom build")
-require("central-economy-1.0.0.jar" in workflow and "central-economy-jar" in workflow, "CI publishes final 1.0.0 artifact")
+require("central-economy-1.0.1.jar" in workflow and "central-economy-jar" in workflow, "CI publishes patched 1.0.1 artifact")
 
 # ---------- server architecture ----------
 interaction = text("src/main/java/dev/centraleconomy/miner/villager/MinerInteractionService.java")
@@ -88,9 +88,15 @@ require("workstation removed or changed" in employment and "VillagerProfession.N
 require("MinerVisualIdentity.clearIfOurs" in employment, "unemployment removes mod-owned profession badge")
 require("claimedPositions" in employment and "claimed.contains(pos.asLong())" in employment,
         "one workstation position cannot be claimed by two villagers")
-require("activeMarket" in interaction and "WanderingTrader" in interaction,
-        "interaction supports all employed villagers plus Wandering Trader")
-require("new Endpoint(trader, \"wandering_trader\")" in transactions,
+require("activeMarket" in interaction and "minecraft:wandering_trader" in interaction,
+        "interaction supports all employed villagers plus Wandering Trader by registry id")
+require("net.minecraft.world.entity.npc.WanderingTrader" not in interaction and
+        "net.minecraft.world.entity.npc.WanderingTrader" not in transactions,
+        "Minecraft 26.2 build does not depend on the removed/relocated WanderingTrader class path")
+require("BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType())" in interaction and
+        "BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType())" in transactions,
+        "Wandering Trader detection uses the stable entity registry identity")
+require("new Endpoint(entity, \"wandering_trader\")" in transactions,
         "Wandering Trader resolves to the miscellaneous market server-side")
 require("engine.requireCommodity(endpoint.marketId(), request.commodityId())" in transactions,
         "server rejects cross-market/unknown commodity requests")
@@ -305,4 +311,4 @@ require("[CE-MARKET] client received snapshot" in client, "client logs authorita
 require('split("\\\\|", 3)' in request or 'split("\\|", 3)' in request, "trade transport parser uses exactly three fields")
 require("commodityId.indexOf('|')" in request, "trade request rejects delimiter injection")
 
-print("PASS: full Central Economy 1.0.0 project validation complete")
+print("PASS: full Central Economy 1.0.1 project validation complete")

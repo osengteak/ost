@@ -1,28 +1,37 @@
-# Validation report — Central Economy 1.0.0
+# Validation report — Central Economy v1.0.1
 
-## What was validated locally
+## Automated checks included
 
-`tools/validate_project.py` performs static/data validation over the complete project. It verifies project versions and CI wiring, all ten workstation registrations/resources, exact 16×16 PNG dimensions, POI/profession integration, persisted employment invariants, workstation-break release behavior, Wandering Trader routing, server-authoritative transaction checks, special-stack constructors, schema migration, catalog coverage and economic no-direct-arbitrage rules.
+`tools/validate_project.py` checks the final multi-market project, including:
 
-`tools/run_core_self_test.sh` compiles only Minecraft-independent Java classes and executes two deterministic test programs. The engine test exercises multiple markets, market-qualified shared stock, UUID-specific A/B quotas, market isolation, A→B transition, retail stock consumption, progression gates and 7-day cycle reset. The UI/request test exercises responsive layouts at multiple resolutions, large-catalog vertical scroll ranges, request round-tripping and malformed/delimiter-injection rejection.
+- Minecraft 26.2 / Fabric Loader 0.19.3 / Fabric API 0.156.0+26.2 metadata;
+- ten custom profession workstation blocks and their blockstate/model/item/recipe/loot resources;
+- exact 16×16 workstation textures;
+- persistent 1:1 workstation employment contracts and break-to-unemployed path;
+- server-authoritative market interaction and proximity checks;
+- Wandering Trader detection by `minecraft:wandering_trader` registry id without a concrete NPC class import;
+- per-player A/B quota keys qualified by market, commodity and planning cycle;
+- shared market retail stock and cycle reset;
+- server stack construction paths for normal items, enchanted books, potions and tipped arrows;
+- all configured market catalogs and special-product variant counts;
+- no raw copper/iron/gold in the miner market;
+- direct same-item buy→sell arbitrage checks across markets;
+- responsive market layout, vertical wheel scrolling and trade-network diagnostics.
 
-## Catalog acceptance snapshot
+`tools/run_core_self_test.sh` compiles and executes Minecraft-independent Java tests for the economy engine, responsive UI math, and generic trade-request serialization/validation.
 
-- Farmer: 20 rows
-- Rancher: 13 rows
-- Fisher: 7 rows
-- Miner: 7 rows
-- Lumberjack: 11 rows
-- Mason: 21 rows
-- Fletcher: 47 rows
-- Librarian: 128 rows
-- Cleric: 152 rows
-- Wandering Trader: 20 rows
-- Cartographer: 4 rows
-- Total: 430 rows
+## Local result for this package
 
-Special exact-stack rows are retail-only because plain-item procurement cannot safely identify arbitrary enchantment/potion components without a component-aware sell matcher. Normal item rows retain A/B procurement where configured.
+```text
+PASS: full Central Economy 1.0.1 project validation complete
+PASS: full central economy engine invariants
+PASS: responsive UI and generic trade request invariants
+```
 
-## What remains external
+## Compile issue fixed from v1.0.0
 
-This environment does not contain the Minecraft/Fabric dependency graph or a Java 25 Gradle toolchain, so it cannot honestly certify a Fabric 26.2 Loom compile here. The included GitHub Actions workflow is the actual compile gate. A green workflow is then followed by live runtime verification in Minecraft 26.2.
+The first v1.0.0 GitHub Actions run failed with four `cannot find symbol` errors because production source imported and type-checked `net.minecraft.world.entity.npc.WanderingTrader`. v1.0.1 removes that Java-class dependency entirely. Both the interaction hook and transaction endpoint resolver now inspect the entity registry identity and accept only `minecraft:wandering_trader`.
+
+## Not claimed yet
+
+This environment cannot perform the real Fabric/Loom-linked Minecraft compile. The next hard gate is a green GitHub Actions `clean build`. After that, live Minecraft testing is still required for all profession workstations and special-product trades.
