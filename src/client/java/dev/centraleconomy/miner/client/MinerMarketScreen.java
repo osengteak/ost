@@ -17,7 +17,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
-/** Searchable, favorite-aware, vertically scrollable miner market. */
+/** One responsive, searchable, favorite-aware, vertically scrollable UI shared by all markets. */
 public final class MinerMarketScreen extends Screen {
     private MinerMarketView view;
     private EditBox search;
@@ -32,7 +32,7 @@ public final class MinerMarketScreen extends Screen {
     private final Set<String> favorites;
 
     public MinerMarketScreen(MinerMarketView view) {
-        super(Component.literal("광부 중앙시장"));
+        super(Component.literal(view.marketName() + " 중앙시장"));
         this.view = view;
         Minecraft mc = Minecraft.getInstance();
         this.playerId = mc.player == null ? new UUID(0L, 0L) : mc.player.getUUID();
@@ -40,17 +40,16 @@ public final class MinerMarketScreen extends Screen {
     }
 
     public void update(MinerMarketView next) {
+        boolean changedMarket = !this.view.marketId().equals(next.marketId());
         this.view = next;
         this.tradePending = false;
         this.pendingTicks = 0;
         this.localMessage = "";
+        if (changedMarket) scrollOffset = 0;
         if (search != null) rebuild();
     }
 
-    @Override
-    protected void init() {
-        rebuild();
-    }
+    @Override protected void init() { rebuild(); }
 
     @Override
     public void tick() {
@@ -70,57 +69,42 @@ public final class MinerMarketScreen extends Screen {
         String keep = searchText;
         clearWidgets();
         MinerMarketLayout.Metrics layout = MinerMarketLayout.calculate(width, height);
-
         search = new EditBox(font, layout.searchX(), layout.searchY(), layout.searchWidth(), 20, Component.literal("검색"));
         search.setValue(keep);
         search.setHint(Component.literal("품목 검색..."));
         search.setResponder(value -> searchText = value);
         addRenderableWidget(search);
 
-        addRenderableWidget(Button.builder(Component.literal("검색"), b -> {
-            scrollOffset = 0;
-            rebuild();
-        }).bounds(layout.searchButtonX(), layout.searchY(), layout.searchButtonWidth(), 20).build());
-
+        addRenderableWidget(Button.builder(Component.literal("검색"), b -> { scrollOffset = 0; rebuild(); })
+                .bounds(layout.searchButtonX(), layout.searchY(), layout.searchButtonWidth(), 20).build());
         addRenderableWidget(Button.builder(Component.literal(favoritesOnly ? "★ 즐겨찾기" : "전체"), b -> {
-            favoritesOnly = !favoritesOnly;
-            scrollOffset = 0;
-            rebuild();
+            favoritesOnly = !favoritesOnly; scrollOffset = 0; rebuild();
         }).bounds(layout.favoritesX(), layout.searchY(), layout.favoritesWidth(), 20).build());
-
         addRenderableWidget(Button.builder(Component.literal(sortByPrice ? "가격순" : "기본순"), b -> {
-            sortByPrice = !sortByPrice;
-            scrollOffset = 0;
-            rebuild();
+            sortByPrice = !sortByPrice; scrollOffset = 0; rebuild();
         }).bounds(layout.sortX(), layout.searchY(), layout.sortWidth(), 20).build());
 
         List<MinerMarketView.Row> filtered = filteredRows();
         scrollOffset = clampScroll(scrollOffset, filtered.size(), layout.visibleRows());
         int end = Math.min(filtered.size(), scrollOffset + layout.visibleRows());
-
         for (int i = scrollOffset; i < end; i++) {
             MinerMarketView.Row row = filtered.get(i);
-            int visibleIndex = i - scrollOffset;
-            int y = layout.rowY(visibleIndex) + 4;
-
-            Button favorite = Button.builder(Component.literal(favorites.contains(row.item()) ? "★" : "☆"), b -> {
-                if (!favorites.add(row.item())) favorites.remove(row.item());
+            int y = layout.rowY(i - scrollOffset) + 4;
+            String favoriteKey = favoriteKey(row);
+            Button favorite = Button.builder(Component.literal(favorites.contains(favoriteKey) ? "★" : "☆"), b -> {
+                if (!favorites.add(favoriteKey)) favorites.remove(favoriteKey);
                 MinerFavorites.save(playerId, favorites);
-                if (favoritesOnly) {
-                    scrollOffset = 0;
-                    rebuild();
-                } else {
-                    b.setMessage(Component.literal(favorites.contains(row.item()) ? "★" : "☆"));
-                }
+                if (favoritesOnly) { scrollOffset = 0; rebuild(); }
+                else b.setMessage(Component.literal(favorites.contains(favoriteKey) ? "★" : "☆"));
             }).bounds(layout.favoriteX(), y, layout.favoriteWidth(), MinerMarketLayout.ROW_BUTTON_HEIGHT).build();
             addRenderableWidget(favorite);
 
-            Button sell = Button.builder(Component.literal(sellLabel(row)), b -> trade("SELL", row.item()))
+            Button sell = Button.builder(Component.literal(sellLabel(row)), b -> trade("SELL", row.commodityId()))
                     .bounds(layout.sellX(), y, layout.sellWidth(), MinerMarketLayout.ROW_BUTTON_HEIGHT).build();
-            sell.active = !tradePending && row.sellOpen();
+            sell.active = !tradePending && row.sellExists() && row.sellOpen();
             addRenderableWidget(sell);
 
-            Button buy = Button.builder(Component.literal(buyLabel(row)), b -> trade("BUY", row.item()))
+            Button buy = Button.builder(Component.literal(buyLabel(row)), b -> trade("BUY", row.commodityId()))
                     .bounds(layout.buyX(), y, layout.buyWidth(), MinerMarketLayout.ROW_BUTTON_HEIGHT).build();
             buy.active = !tradePending && row.buyExists() && row.buyOpen();
             addRenderableWidget(buy);
@@ -131,48 +115,36 @@ public final class MinerMarketScreen extends Screen {
         String q = searchText.trim().toLowerCase(Locale.ROOT);
         List<MinerMarketView.Row> rows = new ArrayList<>();
         for (MinerMarketView.Row row : view.rows()) {
-            if (favoritesOnly && !favorites.contains(row.item())) continue;
-            String name = displayName(row.item()).toLowerCase(Locale.ROOT);
-            if (!q.isEmpty() && !row.item().toLowerCase(Locale.ROOT).contains(q) && !name.contains(q)) continue;
+            if (favoritesOnly && !favorites.contains(favoriteKey(row))) continue;
+            String name = displayName(row).toLowerCase(Locale.ROOT);
+            String ids = (row.commodityId() + " " + row.item()).toLowerCase(Locale.ROOT);
+            if (!q.isEmpty() && !ids.contains(q) && !name.contains(q)) continue;
             rows.add(row);
         }
         if (sortByPrice) rows.sort(Comparator
-                .comparingDouble((MinerMarketView.Row r) -> r.buyExists()
-                        ? (double) r.buyEmeralds() / Math.max(1, r.buyItems())
-                        : Double.POSITIVE_INFINITY)
-                .thenComparing(MinerMarketView.Row::item));
+                .comparingDouble((MinerMarketView.Row r) -> r.buyExists() ? (double) r.buyEmeralds() / Math.max(1, r.buyItems()) : Double.POSITIVE_INFINITY)
+                .thenComparing(MinerMarketView.Row::commodityId));
         return rows;
     }
 
-    private void trade(String direction, String item) {
-        if (tradePending) return;
+    private String favoriteKey(MinerMarketView.Row row) { return view.marketId() + "|" + row.commodityId(); }
 
+    private void trade(String direction, String commodityId) {
+        if (tradePending) return;
         if (!ClientPlayNetworking.canSend(ExecuteMinerTradeC2SPayload.TYPE)) {
             localMessage = "서버가 거래 패킷을 받을 준비가 되지 않았습니다. 모드 버전을 확인하세요.";
-            CentralEconomyMod.LOGGER.error(
-                    "[CE-TRADE] client cannot send trade payload direction={} item={} entityId={}",
-                    direction, item, view.entityId());
-            rebuild();
-            return;
+            CentralEconomyMod.LOGGER.error("[CE-TRADE] client cannot send direction={} market={} commodity={} entityId={}",
+                    direction, view.marketId(), commodityId, view.entityId());
+            rebuild(); return;
         }
-
-        tradePending = true;
-        pendingTicks = 0;
-        localMessage = "거래 요청 전송 중...";
-        rebuild();
-
+        tradePending = true; pendingTicks = 0; localMessage = "거래 요청 전송 중..."; rebuild();
         try {
-            CentralEconomyMod.LOGGER.info(
-                    "[CE-TRADE] client sending direction={} item={} entityId={}",
-                    direction, item, view.entityId());
-            ClientPlayNetworking.send(ExecuteMinerTradeC2SPayload.of(view.entityId(), direction, item));
+            CentralEconomyMod.LOGGER.info("[CE-TRADE] client sending direction={} market={} commodity={} entityId={}",
+                    direction, view.marketId(), commodityId, view.entityId());
+            ClientPlayNetworking.send(ExecuteMinerTradeC2SPayload.of(view.entityId(), direction, commodityId));
         } catch (RuntimeException e) {
-            tradePending = false;
-            pendingTicks = 0;
-            localMessage = "거래 요청 전송 실패. latest.log를 확인하세요.";
-            CentralEconomyMod.LOGGER.error(
-                    "[CE-TRADE] client failed to send direction={} item={} entityId={}",
-                    direction, item, view.entityId(), e);
+            tradePending = false; pendingTicks = 0; localMessage = "거래 요청 전송 실패. latest.log를 확인하세요.";
+            CentralEconomyMod.LOGGER.error("[CE-TRADE] client failed send market={} commodity={}", view.marketId(), commodityId, e);
             rebuild();
         }
     }
@@ -185,10 +157,7 @@ public final class MinerMarketScreen extends Screen {
         if (max > 0 && layout.insideList(mouseX, mouseY) && verticalAmount != 0.0) {
             int next = scrollOffset + (verticalAmount < 0.0 ? 1 : -1);
             next = Math.max(0, Math.min(max, next));
-            if (next != scrollOffset) {
-                scrollOffset = next;
-                rebuild();
-            }
+            if (next != scrollOffset) { scrollOffset = next; rebuild(); }
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
@@ -199,6 +168,7 @@ public final class MinerMarketScreen extends Screen {
     }
 
     private static String sellLabel(MinerMarketView.Row row) {
+        if (!row.sellExists()) return "매입 안 함";
         if (!row.sellOpen()) return "매입 한도 소진";
         return row.tier() + " " + row.sellItems() + "→" + row.sellEmeralds() + "E (" + row.tierRemaining() + ")";
     }
@@ -214,21 +184,17 @@ public final class MinerMarketScreen extends Screen {
         return row.buyEmeralds() + "E→" + row.buyItems() + " (" + row.stock() + ")";
     }
 
-    private static String displayName(String id) {
-        int colon = id.indexOf(':');
-        String namespace = colon >= 0 ? id.substring(0, colon) : "minecraft";
-        String path = colon >= 0 ? id.substring(colon + 1) : id;
-        if ("minecraft".equals(namespace)) return Component.translatable("item.minecraft." + path).getString();
-        return id;
+    private static String displayName(MinerMarketView.Row row) {
+        if (row.displayName() != null && !row.displayName().isBlank()) return row.displayName();
+        if (row.translationKey() != null && !row.translationKey().isBlank()) return Component.translatable(row.translationKey()).getString();
+        return row.commodityId();
     }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
         MinerMarketLayout.Metrics layout = MinerMarketLayout.calculate(width, height);
-
-        graphics.text(font,
-                "광부 중앙시장  |  계획주기 " + view.cycle() + " (" + view.cycleDays() + "일)  |  누적거래 " + view.turnoverEmeralds() + "E",
+        graphics.text(font, view.marketName() + " 중앙시장  |  계획주기 " + view.cycle() + " (" + view.cycleDays() + "일)  |  누적거래 " + view.turnoverEmeralds() + "E",
                 layout.left(), 18, 0xFFFFFFFF, true);
         graphics.text(font, "품목", layout.itemX(), layout.headerY(), 0xFFBFBFBF, true);
         graphics.text(font, "쿼터", layout.quotaX(), layout.headerY(), 0xFFBFBFBF, true);
@@ -240,23 +206,17 @@ public final class MinerMarketScreen extends Screen {
         int end = Math.min(filtered.size(), safeOffset + layout.visibleRows());
         for (int i = safeOffset; i < end; i++) {
             MinerMarketView.Row row = filtered.get(i);
-            int visibleIndex = i - safeOffset;
-            int textY = layout.rowY(visibleIndex) + 10;
-            graphics.text(font, displayName(row.item()), layout.itemX(), textY, 0xFFFFFFFF, true);
-            graphics.text(font, "A" + row.aRemaining() + " B" + row.bRemaining(), layout.quotaX(), textY, 0xFFAAAAAA, true);
+            int textY = layout.rowY(i - safeOffset) + 10;
+            graphics.text(font, displayName(row), layout.itemX(), textY, 0xFFFFFFFF, true);
+            String quota = row.sellExists() ? "A" + row.aRemaining() + " B" + row.bRemaining() : "-";
+            graphics.text(font, quota, layout.quotaX(), textY, 0xFFAAAAAA, true);
         }
-
         if (filtered.size() > layout.visibleRows()) {
             int from = filtered.isEmpty() ? 0 : safeOffset + 1;
             int to = Math.min(filtered.size(), safeOffset + layout.visibleRows());
-            graphics.text(font,
-                    from + "-" + to + "/" + filtered.size() + "  ↕ 마우스 휠",
-                    layout.left(), layout.messageY(), 0xFFBFBFBF, true);
+            graphics.text(font, from + "-" + to + "/" + filtered.size() + "  ↕ 마우스 휠", layout.left(), layout.messageY(), 0xFFBFBFBF, true);
         }
-
         String message = !localMessage.isBlank() ? localMessage : view.message();
-        if (!message.isBlank()) {
-            graphics.text(font, message, layout.left(), Math.min(height - 8, layout.messageY() + 12), 0xFFFFFF80, true);
-        }
+        if (!message.isBlank()) graphics.text(font, message, layout.left(), Math.min(height - 8, layout.messageY() + 12), 0xFFFFFF80, true);
     }
 }

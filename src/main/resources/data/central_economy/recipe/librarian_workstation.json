@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "key": {
+    "L": "minecraft:lapis_lazuli",
+    "B": "minecraft:book",
+    "P": "#minecraft:planks"
+  },
+  "pattern": [
+    "LBL",
+    "PPP",
+    "PPP"
+  ],
+  "result": {
+    "id": "central_economy:librarian_workstation"
+  }
+}

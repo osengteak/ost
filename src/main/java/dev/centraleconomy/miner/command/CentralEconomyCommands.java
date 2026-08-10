@@ -13,7 +13,7 @@ import java.util.Set;
 
 /** Debug/admin hooks for progression structures whose physical definitions have not yet been designed. */
 public final class CentralEconomyCommands {
-    private static final Set<String> FLAGS = Set.of("market_warehouse", "regional_trade_route", "mineral_warehouse");
+    private static final Set<String> FLAGS = Set.of("market_warehouse", "regional_trade_route", "mineral_warehouse", "public_library");
     private CentralEconomyCommands() {}
 
     public static void initialize() {
@@ -25,7 +25,7 @@ public final class CentralEconomyCommands {
                             MarketSavedData saved = MarketSavedData.get(ctx.getSource().getServer());
                             saved.state().initializedCycle(Long.MIN_VALUE);
                             saved.touch();
-                            ctx.getSource().sendSuccess(() -> Component.literal("Central Economy: miner_plan.json reloaded; current cycle stock will reinitialize."), false);
+                            ctx.getSource().sendSuccess(() -> Component.literal("Central Economy: economy_plan.json reloaded; current cycle stock will reinitialize."), false);
                             return 1;
                         }))
                         .then(Commands.literal("status").executes(ctx -> {
@@ -61,7 +61,7 @@ public final class CentralEconomyCommands {
                             int count = saved.state().workstationClaims().size();
                             saved.state().workstationClaims().clear();
                             saved.touch();
-                            ctx.getSource().sendSuccess(() -> Component.literal("Cleared " + count + " miner workstation fallback claims."), false);
+                            ctx.getSource().sendSuccess(() -> Component.literal("Cleared " + count + " Central Economy workstation claims."), false);
                             return count;
                         }))
         ));

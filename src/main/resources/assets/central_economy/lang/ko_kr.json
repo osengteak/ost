@@ -1,4 +1,22 @@
 {
+  "block.central_economy.farmer_workstation": "농산물 작업대",
+  "entity.central_economy.villager.farmer": "농부",
+  "block.central_economy.rancher_workstation": "축산 작업대",
+  "entity.central_economy.villager.rancher": "목축업자",
+  "block.central_economy.fisher_workstation": "수산물 작업대",
+  "entity.central_economy.villager.fisher": "어부",
+  "block.central_economy.miner_workstation": "광물 작업대",
   "entity.central_economy.villager.miner": "광부",
-  "entity.central_economy.villager.miner_badge": "[광부]"
+  "block.central_economy.lumberjack_workstation": "벌목 작업대",
+  "entity.central_economy.villager.lumberjack": "벌목꾼",
+  "block.central_economy.mason_workstation": "석재 작업대",
+  "entity.central_economy.villager.mason": "석공",
+  "block.central_economy.fletcher_workstation": "궁시 작업대",
+  "entity.central_economy.villager.fletcher": "화살 제조인",
+  "block.central_economy.librarian_workstation": "마법서 작업대",
+  "entity.central_economy.villager.librarian": "사서",
+  "block.central_economy.cleric_workstation": "연금 작업대",
+  "entity.central_economy.villager.cleric": "성직자",
+  "block.central_economy.cartographer_workstation": "제도 작업대",
+  "entity.central_economy.villager.cartographer": "지도제작자"
 }

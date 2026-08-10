@@ -8,6 +8,7 @@ mkdir -p "$OUT"
 javac -d "$OUT" \
   "$ROOT/src/main/java/dev/centraleconomy/miner/market/DeterministicRolls.java" \
   "$ROOT/src/main/java/dev/centraleconomy/miner/market/GateEvaluator.java" \
+  "$ROOT/src/main/java/dev/centraleconomy/miner/market/MarketKeys.java" \
   "$ROOT/src/main/java/dev/centraleconomy/miner/market/MarketMutableState.java" \
   "$ROOT/src/main/java/dev/centraleconomy/miner/market/MinerMarketEngine.java" \
   "$ROOT/src/main/java/dev/centraleconomy/miner/market/ProcurementQuote.java" \
@@ -16,6 +17,7 @@ javac -d "$OUT" \
   "$ROOT/src/main/java/dev/centraleconomy/miner/market/RetailQuote.java" \
   "$ROOT/src/main/java/dev/centraleconomy/miner/market/WorkstationClaim.java" \
   "$ROOT/src/main/java/dev/centraleconomy/miner/plan/CommodityPlan.java" \
+  "$ROOT/src/main/java/dev/centraleconomy/miner/plan/MarketPlan.java" \
   "$ROOT/src/main/java/dev/centraleconomy/miner/plan/MinerPlan.java" \
   "$ROOT/src/main/java/dev/centraleconomy/miner/plan/RetailPlan.java" \
   "$ROOT/src/main/java/dev/centraleconomy/miner/plan/TierPlan.java" \

@@ -1,42 +1,28 @@
-# Validation report - Miner v0.6.1
+# Validation report — Central Economy 1.0.0
 
-## Automated checks included
+## What was validated locally
 
-`tools/validate_project.py` checks source/config invariants including:
+`tools/validate_project.py` performs static/data validation over the complete project. It verifies project versions and CI wiring, all ten workstation registrations/resources, exact 16×16 PNG dimensions, POI/profession integration, persisted employment invariants, workstation-break release behavior, Wandering Trader routing, server-authoritative transaction checks, special-stack constructors, schema migration, catalog coverage and economic no-direct-arbitrage rules.
 
-- stable employment-contract authority and workstation unemployment path;
-- normal server-side villager interaction path;
-- networking initialization;
-- responsive market layout and removal of fixed six-row pagination;
-- vertical mouse-wheel scroll implementation;
-- client sendability check and staged `[CE-TRADE]` diagnostics;
-- server commodity whitelist validation and authoritative transaction refresh;
-- schema-1-to-schema-2 plan migration/backup path;
-- exactly 7 miner commodities;
-- raw copper/raw iron/raw gold absent from all miner trading;
-- A procurement unit value not below B industrial unit value;
-- retail unit price above both procurement unit prices for every commodity.
+`tools/run_core_self_test.sh` compiles only Minecraft-independent Java classes and executes two deterministic test programs. The engine test exercises multiple markets, market-qualified shared stock, UUID-specific A/B quotas, market isolation, A→B transition, retail stock consumption, progression gates and 7-day cycle reset. The UI/request test exercises responsive layouts at multiple resolutions, large-catalog vertical scroll ranges, request round-tripping and malformed/delimiter-injection rejection.
 
-`tools/run_core_self_test.sh` compiles and executes pure Java tests without Minecraft:
+## Catalog acceptance snapshot
 
-- A -> B procurement transition;
-- per-player quota separation;
-- procurement adding physical shared stock;
-- retail consuming shared stock;
-- deterministic quota rolls;
-- 7-day cycle reset;
-- responsive layout bounds at 320x240 through 1648x928;
-- compact-screen vertical scrolling math;
-- BUY/SELL trade-request round trips and malformed-request rejection.
+- Farmer: 20 rows
+- Rancher: 13 rows
+- Fisher: 7 rows
+- Miner: 7 rows
+- Lumberjack: 11 rows
+- Mason: 21 rows
+- Fletcher: 47 rows
+- Librarian: 128 rows
+- Cleric: 152 rows
+- Wandering Trader: 20 rows
+- Cartographer: 4 rows
+- Total: 430 rows
 
-## Local result for this package
+Special exact-stack rows are retail-only because plain-item procurement cannot safely identify arbitrary enchantment/potion components without a component-aware sell matcher. Normal item rows retain A/B procurement where configured.
 
-```text
-PASS: project validation complete
-PASS: central economy core invariants
-PASS: responsive UI layout and trade request invariants
-```
+## What remains external
 
-## Not claimed by local tests
-
-This environment does not contain a working local Fabric/Loom toolchain, so Minecraft-linked classes are not compiled here. GitHub Actions performs the real Minecraft 26.2/Fabric compile. A successful build is still not a substitute for opening the game and exercising a real transaction.
+This environment does not contain the Minecraft/Fabric dependency graph or a Java 25 Gradle toolchain, so it cannot honestly certify a Fabric 26.2 Loom compile here. The included GitHub Actions workflow is the actual compile gate. A green workflow is then followed by live runtime verification in Minecraft 26.2.

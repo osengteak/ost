@@ -1,25 +1,39 @@
 package dev.centraleconomy.miner.villager;
 
 import dev.centraleconomy.miner.CentralEconomyMod;
+import dev.centraleconomy.miner.block.ModBlocks;
 import net.fabricmc.fabric.api.object.builder.v1.world.poi.PoiHelper;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.ai.village.poi.PoiType;
-import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.Block;
 
-/** Miner workstation POI. The agreed workstation is vanilla Chiseled Quartz Block. */
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+/** POI registry for the ten player-placeable Central Economy workstations. */
 public final class ModPoiTypes {
-    public static final Identifier MINER_WORKSTATION_ID = CentralEconomyMod.id("miner_workstation");
-    public static final ResourceKey<PoiType> MINER_WORKSTATION_KEY =
-            ResourceKey.create(Registries.POINT_OF_INTEREST_TYPE, MINER_WORKSTATION_ID);
+    private static final Map<String, ResourceKey<PoiType>> KEYS = new LinkedHashMap<>();
+    private static final Map<String, PoiType> TYPES = new LinkedHashMap<>();
 
-    // One ticket means one workstation is not intentionally shared by several villagers.
-    public static final PoiType MINER_WORKSTATION =
-            PoiHelper.register(MINER_WORKSTATION_ID, 1, 1, Blocks.CHISELED_QUARTZ_BLOCK);
+    static {
+        ModBlocks.allWorkstations().forEach(ModPoiTypes::register);
+    }
 
     private ModPoiTypes() {}
+
+    private static void register(String marketId, Block block) {
+        var id = CentralEconomyMod.id(marketId + "_workstation");
+        ResourceKey<PoiType> key = ResourceKey.create(Registries.POINT_OF_INTEREST_TYPE, id);
+        PoiType type = PoiHelper.register(id, 1, 1, block);
+        KEYS.put(marketId, key);
+        TYPES.put(marketId, type);
+    }
+
+    public static ResourceKey<PoiType> key(String marketId) { return KEYS.get(marketId); }
+    public static Map<String, ResourceKey<PoiType>> allKeys() { return Map.copyOf(KEYS); }
+
     public static void initialize() {
-        CentralEconomyMod.LOGGER.info("Miner workstation POI registered on minecraft:chiseled_quartz_block");
+        CentralEconomyMod.LOGGER.info("Registered {} Central Economy workstation POIs", KEYS.size());
     }
 }

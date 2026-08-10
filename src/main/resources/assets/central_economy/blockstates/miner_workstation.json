@@ -1,0 +1,7 @@
+{
+  "variants": {
+    "": {
+      "model": "central_economy:block/miner_workstation"
+    }
+  }
+}

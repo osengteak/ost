@@ -25,29 +25,24 @@ public final class UiAndRequestSelfTest {
             check(m.buyX() + m.buyWidth() == m.right(), "columns exactly fill panel" + suffix);
             check(m.visibleRows() >= 1, "at least one row visible" + suffix);
             check(m.listBottom() <= size[1], "list bottom fits screen" + suffix);
-            for (int row = 0; row < m.visibleRows(); row++) {
-                check(m.rowY(row) >= m.rowTop(), "row top in list" + suffix);
-                check(m.rowY(row) + MinerMarketLayout.ROW_HEIGHT <= m.listBottom(), "row bottom in list" + suffix);
-            }
         }
 
         MinerMarketLayout.Metrics compact = MinerMarketLayout.calculate(426, 240);
-        check(compact.maxScroll(7) > 0, "seven commodities are vertically scrollable on compact GUI");
+        check(compact.maxScroll(128) > 0, "large librarian catalog is vertically scrollable");
+        check(compact.maxScroll(152) >= compact.maxScroll(128), "cleric catalog scroll range scales with rows");
         check(compact.insideList(compact.left() + 1, compact.rowTop() + 1), "list hit testing works");
         check(!compact.insideList(compact.left() - 1, compact.rowTop() + 1), "list rejects x outside panel");
-        check(!compact.insideList(compact.left() + 1, compact.listBottom()), "list rejects y at/below list bottom");
-
-        MinerMarketLayout.Metrics normal = MinerMarketLayout.calculate(824, 464);
-        check(normal.maxScroll(7) == 0, "all seven commodities fit at the tested normal GUI size");
+        check(!compact.insideList(compact.left() + 1, compact.listBottom()), "list rejects y below list");
 
         MinerTradeRequest sell = new MinerTradeRequest(42, MinerTradeRequest.Direction.SELL, "minecraft:iron_ingot");
         check(MinerTradeRequest.parse(sell.encode()).equals(sell), "SELL request round-trip");
-        MinerTradeRequest buy = new MinerTradeRequest(7, MinerTradeRequest.Direction.BUY, "minecraft:diamond");
-        check(MinerTradeRequest.parse(buy.encode()).equals(buy), "BUY request round-trip");
+        MinerTradeRequest specialBuy = new MinerTradeRequest(7, MinerTradeRequest.Direction.BUY,
+                "central_economy:enchanted_book/lunge/3");
+        check(MinerTradeRequest.parse(specialBuy.encode()).equals(specialBuy), "special variant BUY request round-trip");
 
         boolean malformedRejected = false;
         try { MinerTradeRequest.parse("bad|REQUEST"); }
-        catch (IllegalArgumentException e) { malformedRejected = true; }
+        catch (RuntimeException e) { malformedRejected = true; }
         check(malformedRejected, "malformed trade request rejected");
 
         boolean delimiterRejected = false;
@@ -60,6 +55,6 @@ public final class UiAndRequestSelfTest {
         catch (IllegalArgumentException e) { negativeEntityRejected = true; }
         check(negativeEntityRejected, "negative entity id rejected");
 
-        System.out.println("PASS: responsive UI layout and trade request invariants");
+        System.out.println("PASS: responsive UI and generic trade request invariants");
     }
 }

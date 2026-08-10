@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "L": "#minecraft:logs",
+    "A": "minecraft:iron_axe"
+  },
+  "pattern": [
+    "III",
+    "LAL",
+    "LLL"
+  ],
+  "result": {
+    "id": "central_economy:lumberjack_workstation"
+  }
+}

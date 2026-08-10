@@ -1,4 +1,4 @@
-name: Build Miner Mod
+name: Build Central Economy
 
 on:
   push:
@@ -11,7 +11,7 @@ jobs:
   build:
     name: Fabric 26.2 Build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout source
@@ -34,13 +34,13 @@ jobs:
           java -version 2>&1 | tee environment.log
           gradle --version 2>&1 | tee -a environment.log
 
-      - name: Validate source and economy invariants
+      - name: Validate full project and economy invariants
         shell: bash
         run: |
           set -o pipefail
           python3 tools/validate_project.py 2>&1 | tee validation-output.log
 
-      - name: Run pure core UI and request self-tests
+      - name: Run pure economy UI and request self-tests
         shell: bash
         run: |
           set -o pipefail
@@ -64,15 +64,15 @@ jobs:
             echo "No installable JAR found in build/libs" | tee -a build-output.log
             exit 1
           fi
-          cp "$JAR" dist/central-economy-miner-0.6.1.jar
+          cp "$JAR" dist/central-economy-1.0.0.jar
           echo "Installable JAR: $JAR" | tee -a build-output.log
-          sha256sum dist/central-economy-miner-0.6.1.jar | tee dist/SHA256.txt
+          sha256sum dist/central-economy-1.0.0.jar | tee dist/SHA256.txt
 
       - name: Upload installable JAR
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: central-economy-miner-jar
+          name: central-economy-jar
           path: dist/
           if-no-files-found: error
           retention-days: 14
@@ -81,7 +81,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: central-economy-miner-build-log
+          name: central-economy-build-log
           path: |
             build-output.log
             environment.log

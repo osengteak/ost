@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "key": {
+    "B": "minecraft:brick",
+    "S": "minecraft:stone",
+    "C": "minecraft:stonecutter"
+  },
+  "pattern": [
+    "BBB",
+    "SCS",
+    "SSS"
+  ],
+  "result": {
+    "id": "central_economy:mason_workstation"
+  }
+}

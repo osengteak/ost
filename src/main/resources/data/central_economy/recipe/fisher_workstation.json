@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "key": {
+    "S": "minecraft:string",
+    "C": "minecraft:cod",
+    "P": "#minecraft:planks"
+  },
+  "pattern": [
+    "SCS",
+    "CPC",
+    "PPP"
+  ],
+  "result": {
+    "id": "central_economy:fisher_workstation"
+  }
+}

@@ -16,21 +16,20 @@ import net.minecraft.world.level.saveddata.SavedDataType;
 import java.util.Map;
 import java.util.UUID;
 
-/** One overworld-scoped authoritative market ledger shared by every miner NPC on the server. */
+/** One overworld-scoped authoritative ledger for all Central Economy markets. */
 public final class MarketSavedData extends SavedData {
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     private final MarketMutableState state;
 
-    private static final Codec<MarketSavedData> CODEC = Codec.STRING.xmap(MarketSavedData::fromJson, MarketSavedData::toJson);
+    private static final Codec<MarketSavedData> CODEC =
+            Codec.STRING.xmap(MarketSavedData::fromJson, MarketSavedData::toJson);
     private static final SavedDataType<MarketSavedData> TYPE = new SavedDataType<>(
             Identifier.fromNamespaceAndPath(CentralEconomyMod.MOD_ID, "market_state"),
-            MarketSavedData::new,
-            CODEC,
-            null
-    );
+            MarketSavedData::new, CODEC, null);
 
     public MarketSavedData() { this(new MarketMutableState()); }
     private MarketSavedData(MarketMutableState state) { this.state = state; }
+
     public MarketMutableState state() { return state; }
     public void touch() { setDirty(); }
 
@@ -59,6 +58,7 @@ public final class MarketSavedData extends SavedData {
                 .forEach(e -> {
                     JsonObject q = new JsonObject();
                     q.addProperty("player", e.getKey().playerId().toString());
+                    q.addProperty("market", e.getKey().marketId());
                     q.addProperty("commodity", e.getKey().commodityId());
                     q.addProperty("cycle", e.getKey().cycleId());
                     q.addProperty("a", e.getValue().aUsed());
@@ -73,6 +73,7 @@ public final class MarketSavedData extends SavedData {
                 .forEach(e -> {
                     JsonObject c = new JsonObject();
                     c.addProperty("villager", e.getKey().toString());
+                    c.addProperty("market", e.getValue().marketId());
                     c.addProperty("dimension", e.getValue().dimensionId());
                     c.addProperty("pos", e.getValue().blockPos());
                     claims.add(c);
@@ -90,20 +91,25 @@ public final class MarketSavedData extends SavedData {
             if (root.has("turnover_e")) state.cumulativeTurnoverEmeralds(root.get("turnover_e").getAsLong());
             if (root.has("stock")) {
                 for (Map.Entry<String, com.google.gson.JsonElement> e : root.getAsJsonObject("stock").entrySet()) {
-                    state.retailStock().put(e.getKey(), Math.max(0, e.getValue().getAsInt()));
+                    // v0.6.x stock keys had no market namespace. Migrate those seven rows into miner.
+                    String key = e.getKey().contains("|") ? e.getKey() : MarketKeys.stock("miner", e.getKey());
+                    state.retailStock().put(key, Math.max(0, e.getValue().getAsInt()));
                 }
             }
-            if (root.has("flags")) root.getAsJsonArray("flags").forEach(v -> state.infrastructureFlags().add(v.getAsString()));
+            if (root.has("flags")) root.getAsJsonArray("flags")
+                    .forEach(v -> state.infrastructureFlags().add(v.getAsString()));
             if (root.has("quotas")) root.getAsJsonArray("quotas").forEach(v -> {
                 JsonObject q = v.getAsJsonObject();
-                QuotaKey key = new QuotaKey(UUID.fromString(q.get("player").getAsString()), q.get("commodity").getAsString(), q.get("cycle").getAsLong());
+                String market = q.has("market") ? q.get("market").getAsString() : "miner";
+                QuotaKey key = new QuotaKey(UUID.fromString(q.get("player").getAsString()), market,
+                        q.get("commodity").getAsString(), q.get("cycle").getAsLong());
                 state.quotaUsage().put(key, new QuotaUsage(q.get("a").getAsInt(), q.get("b").getAsInt()));
             });
             if (root.has("workstation_claims")) root.getAsJsonArray("workstation_claims").forEach(v -> {
                 JsonObject c = v.getAsJsonObject();
-                state.workstationClaims().put(
-                        UUID.fromString(c.get("villager").getAsString()),
-                        new WorkstationClaim(c.get("dimension").getAsString(), c.get("pos").getAsLong()));
+                String market = c.has("market") ? c.get("market").getAsString() : "miner";
+                state.workstationClaims().put(UUID.fromString(c.get("villager").getAsString()),
+                        new WorkstationClaim(market, c.get("dimension").getAsString(), c.get("pos").getAsLong()));
             });
         } catch (RuntimeException e) {
             CentralEconomyMod.LOGGER.error("Invalid persisted market_state; starting safe empty state", e);

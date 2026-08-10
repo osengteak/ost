@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "central_economy:block/rancher_workstation"
+  }
+}

@@ -6,4 +6,4 @@ pluginManagement {
     }
 }
 
-rootProject.name = 'central-economy-miner'
+rootProject.name = 'central-economy'

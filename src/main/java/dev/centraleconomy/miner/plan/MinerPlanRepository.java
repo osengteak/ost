@@ -8,7 +8,6 @@ import com.google.gson.JsonParser;
 import dev.centraleconomy.miner.CentralEconomyMod;
 import net.fabricmc.loader.api.FabricLoader;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
@@ -19,16 +18,13 @@ import java.nio.file.StandardOpenOption;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Loads all economic numbers from JSON. Java code contains no miner prices or quotas. */
+/** Economic values are external JSON. Java owns invariants, not prices. */
 public final class MinerPlanRepository {
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final String BUNDLED = "/data/central_economy/economy/miner_plan.json";
-    private final Path configPath;
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
+    private static final String BUNDLED = "/data/central_economy/economy/economy_plan.json";
+    private final Path configPath =
+            FabricLoader.getInstance().getConfigDir().resolve("central_economy").resolve("economy_plan.json");
     private volatile MinerPlan current;
-
-    public MinerPlanRepository() {
-        this.configPath = FabricLoader.getInstance().getConfigDir().resolve("central_economy").resolve("miner_plan.json");
-    }
 
     public synchronized MinerPlan loadOrReload() {
         try {
@@ -38,17 +34,31 @@ public final class MinerPlanRepository {
 
             if (Files.notExists(configPath)) {
                 writeConfig(bundled);
-                CentralEconomyMod.LOGGER.info("Created default miner_plan.json schema={}", bundledSchema);
             } else {
-                migrateOlderConfigIfNeeded(bundled, bundledSchema);
+                JsonObject existing;
+                try (Reader reader = Files.newBufferedReader(configPath, StandardCharsets.UTF_8)) {
+                    existing = JsonParser.parseReader(reader).getAsJsonObject();
+                } catch (RuntimeException e) {
+                    Path backup = configPath.resolveSibling("economy_plan.invalid.backup.json");
+                    Files.copy(configPath, backup, StandardCopyOption.REPLACE_EXISTING);
+                    writeConfig(bundled);
+                    existing = bundled;
+                }
+                int existingSchema = existing.has("schema") ? existing.get("schema").getAsInt() : 0;
+                if (existingSchema < bundledSchema) {
+                    Path backup = configPath.resolveSibling("economy_plan.schema" + existingSchema + ".backup.json");
+                    Files.copy(configPath, backup, StandardCopyOption.REPLACE_EXISTING);
+                    writeConfig(bundled);
+                    CentralEconomyMod.LOGGER.info("Migrated economy_plan schema {} -> {}", existingSchema, bundledSchema);
+                }
             }
 
             try (Reader reader = Files.newBufferedReader(configPath, StandardCharsets.UTF_8)) {
                 current = parse(JsonParser.parseReader(reader).getAsJsonObject());
             }
             CentralEconomyMod.LOGGER.info(
-                    "Loaded miner economy plan: schema={}, {} commodities, {} day cycle",
-                    current.schema(), current.commodities().size(), current.planningCycleDays());
+                    "Loaded Central Economy plan: schema={}, markets={}, rows={}, cycle={} days",
+                    current.schema(), current.markets().size(), current.commodityCount(), current.planningCycleDays());
             return current;
         } catch (Exception e) {
             throw new IllegalStateException("Failed to load " + configPath, e);
@@ -57,80 +67,71 @@ public final class MinerPlanRepository {
 
     public MinerPlan current() {
         MinerPlan value = current;
-        if (value == null) return loadOrReload();
-        return value;
+        return value == null ? loadOrReload() : value;
     }
 
-    public Path configPath() { return configPath; }
-
-    private JsonObject readBundled() throws IOException {
+    private JsonObject readBundled() throws Exception {
         try (InputStream in = MinerPlanRepository.class.getResourceAsStream(BUNDLED)) {
-            if (in == null) throw new IOException("bundled miner_plan.json missing");
-            String json = new String(in.readAllBytes(), StandardCharsets.UTF_8);
-            return JsonParser.parseString(json).getAsJsonObject();
+            if (in == null) throw new IllegalStateException("bundled economy_plan.json missing");
+            return JsonParser.parseString(new String(in.readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject();
         }
     }
 
-    private void migrateOlderConfigIfNeeded(JsonObject bundled, int bundledSchema) throws IOException {
-        JsonObject existing;
-        try (Reader reader = Files.newBufferedReader(configPath, StandardCharsets.UTF_8)) {
-            existing = JsonParser.parseReader(reader).getAsJsonObject();
-        } catch (RuntimeException e) {
-            Path backup = configPath.resolveSibling("miner_plan.invalid.backup.json");
-            Files.copy(configPath, backup, StandardCopyOption.REPLACE_EXISTING);
-            writeConfig(bundled);
-            CentralEconomyMod.LOGGER.warn(
-                    "Existing miner_plan.json was invalid; backed it up to {} and restored bundled schema",
-                    backup);
-            return;
-        }
-
-        int existingSchema = existing.has("schema") ? existing.get("schema").getAsInt() : 0;
-        if (existingSchema < bundledSchema) {
-            Path backup = configPath.resolveSibling("miner_plan.schema" + existingSchema + ".backup.json");
-            Files.copy(configPath, backup, StandardCopyOption.REPLACE_EXISTING);
-            writeConfig(bundled);
-            CentralEconomyMod.LOGGER.info(
-                    "Migrated miner_plan.json schema {} -> {}; previous file backed up to {}",
-                    existingSchema, bundledSchema, backup);
-        }
-    }
-
-    private void writeConfig(JsonObject root) throws IOException {
-        Files.writeString(
-                configPath,
-                GSON.toJson(root) + System.lineSeparator(),
-                StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.TRUNCATE_EXISTING,
-                StandardOpenOption.WRITE);
+    private void writeConfig(JsonObject root) throws Exception {
+        Files.writeString(configPath, GSON.toJson(root) + System.lineSeparator(), StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
     }
 
     private static MinerPlan parse(JsonObject root) {
         int schema = requiredInt(root, "schema");
         int cycleDays = requiredInt(root, "planning_cycle_days");
-        JsonObject commoditiesJson = root.getAsJsonObject("commodities");
-        if (commoditiesJson == null || commoditiesJson.isEmpty()) throw new IllegalArgumentException("commodities missing");
-        Map<String, CommodityPlan> commodities = new LinkedHashMap<>();
-        for (Map.Entry<String, JsonElement> entry : commoditiesJson.entrySet()) {
-            JsonObject value = entry.getValue().getAsJsonObject();
-            TierPlan a = tier(value.getAsJsonObject("procurement_a"));
-            TierPlan b = tier(value.getAsJsonObject("procurement_b"));
-            RetailPlan retail = value.has("retail") ? retail(value.getAsJsonObject("retail")) : null;
-            commodities.put(entry.getKey(), new CommodityPlan(entry.getKey(), a, b, retail));
+        JsonObject marketsJson = root.getAsJsonObject("markets");
+        if (marketsJson == null || marketsJson.isEmpty()) throw new IllegalArgumentException("markets missing");
+
+        Map<String, MarketPlan> markets = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> marketEntry : marketsJson.entrySet()) {
+            String marketId = marketEntry.getKey();
+            JsonObject mo = marketEntry.getValue().getAsJsonObject();
+            String display = mo.get("display_name").getAsString();
+            String workstation = mo.has("workstation") && !mo.get("workstation").isJsonNull()
+                    ? mo.get("workstation").getAsString() : "";
+
+            JsonObject commoditiesJson = mo.getAsJsonObject("commodities");
+            Map<String, CommodityPlan> commodities = new LinkedHashMap<>();
+            for (Map.Entry<String, JsonElement> entry : commoditiesJson.entrySet()) {
+                JsonObject o = entry.getValue().getAsJsonObject();
+                String commodityId = entry.getKey();
+                String itemId = requiredString(o, "item");
+                String displayName = o.has("display_name") ? o.get("display_name").getAsString() : "";
+                String kind = o.has("kind") ? o.get("kind").getAsString() : "item";
+                String variant = o.has("variant") ? o.get("variant").getAsString() : "";
+                int level = o.has("level") ? o.get("level").getAsInt() : 0;
+                TierPlan a = o.has("procurement_a") ? tier(o.getAsJsonObject("procurement_a")) : null;
+                TierPlan b = o.has("procurement_b") ? tier(o.getAsJsonObject("procurement_b")) : null;
+                RetailPlan retail = o.has("retail") ? retail(o.getAsJsonObject("retail")) : null;
+                commodities.put(commodityId,
+                        new CommodityPlan(commodityId, itemId, displayName, kind, variant, level, a, b, retail));
+            }
+            markets.put(marketId, new MarketPlan(marketId, display, workstation, commodities));
         }
-        return new MinerPlan(schema, cycleDays, commodities);
+        return new MinerPlan(schema, cycleDays, markets);
     }
 
     private static TierPlan tier(JsonObject o) {
-        if (o == null) throw new IllegalArgumentException("procurement tier missing");
-        return new TierPlan(requiredInt(o, "lot_items"), requiredInt(o, "emeralds"), requiredInt(o, "base_uses"), requiredDouble(o, "extra_use_probability"));
+        return new TierPlan(requiredInt(o, "lot_items"), requiredInt(o, "emeralds"),
+                requiredInt(o, "base_uses"), requiredDouble(o, "extra_use_probability"));
     }
 
     private static RetailPlan retail(JsonObject o) {
-        return new RetailPlan(requiredInt(o, "lot_items"), requiredInt(o, "emeralds"), requiredInt(o, "uses"), requiredDouble(o, "activation_probability"), o.has("gate") ? o.get("gate").getAsString() : "none");
+        return new RetailPlan(requiredInt(o, "lot_items"), requiredInt(o, "emeralds"),
+                requiredInt(o, "uses"), requiredDouble(o, "activation_probability"),
+                o.has("gate") ? o.get("gate").getAsString() : "none");
     }
 
+    private static String requiredString(JsonObject o, String key) {
+        if (!o.has(key)) throw new IllegalArgumentException("missing " + key);
+        return o.get(key).getAsString();
+    }
     private static int requiredInt(JsonObject o, String key) {
         if (!o.has(key)) throw new IllegalArgumentException("missing " + key);
         return o.get(key).getAsInt();

@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "particle": "central_economy:block/miner_workstation_side",
+    "down": "central_economy:block/miner_workstation_detail",
+    "up": "central_economy:block/miner_workstation_top",
+    "north": "central_economy:block/miner_workstation_side",
+    "south": "central_economy:block/miner_workstation_side",
+    "east": "central_economy:block/miner_workstation_detail",
+    "west": "central_economy:block/miner_workstation_detail"
+  }
+}

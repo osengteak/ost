@@ -2,20 +2,14 @@
   "schemaVersion": 1,
   "id": "central_economy",
   "version": "${version}",
-  "name": "Central Economy - Miner",
-  "description": "Miner-only central-economy vertical slice for Minecraft 26.2: stable chiseled-quartz employment contracts, visible miner badge, workstation unemployment, A/B procurement, shared retail stock, persistence and responsive scrollable market UI, raw-ore exclusion and server-authoritative executable trades.",
-  "authors": [
-    "OpenAI-assisted project"
-  ],
+  "name": "Central Economy",
+  "description": "Central-planned specialization economy for Minecraft 26.2 with ten workstation professions, a wandering-trader miscellaneous market, A/B procurement quotas, global stock, persistence and a unified searchable market UI.",
+  "authors": ["OpenAI-assisted project"],
   "license": "MIT",
   "environment": "*",
   "entrypoints": {
-    "main": [
-      "dev.centraleconomy.miner.CentralEconomyMod"
-    ],
-    "client": [
-      "dev.centraleconomy.miner.client.CentralEconomyClient"
-    ]
+    "main": ["dev.centraleconomy.miner.CentralEconomyMod"],
+    "client": ["dev.centraleconomy.miner.client.CentralEconomyClient"]
   },
   "depends": {
     "fabricloader": ">=0.19.3",

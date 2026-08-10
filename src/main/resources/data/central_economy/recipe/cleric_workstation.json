@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "key": {
+    "N": "minecraft:nether_wart",
+    "G": "minecraft:glass",
+    "B": "minecraft:blaze_powder",
+    "S": "minecraft:stone"
+  },
+  "pattern": [
+    "NNN",
+    "GBG",
+    "SSS"
+  ],
+  "result": {
+    "id": "central_economy:cleric_workstation"
+  }
+}

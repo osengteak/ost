@@ -1,8 +1,9 @@
 package dev.centraleconomy.miner.market;
 
-/** Persisted fallback employment claim. Dimension id is namespaced, position is packed BlockPos long. */
-public record WorkstationClaim(String dimensionId, long blockPos) {
+/** Persisted 1:1 employment contract: profession market + dimension + workstation position. */
+public record WorkstationClaim(String marketId, String dimensionId, long blockPos) {
     public WorkstationClaim {
+        if (marketId == null || marketId.isBlank()) throw new IllegalArgumentException("marketId required");
         if (dimensionId == null || dimensionId.isBlank()) throw new IllegalArgumentException("dimensionId required");
     }
 }

@@ -1,5 +1,6 @@
 package dev.centraleconomy.miner;
 
+import dev.centraleconomy.miner.block.ModBlocks;
 import dev.centraleconomy.miner.command.CentralEconomyCommands;
 import dev.centraleconomy.miner.market.MinerMarketRuntime;
 import dev.centraleconomy.miner.net.MinerMarketNetworking;
@@ -16,12 +17,11 @@ public final class CentralEconomyMod implements ModInitializer {
     public static final String MOD_ID = "central_economy";
     public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-    public static Identifier id(String path) {
-        return Identifier.fromNamespaceAndPath(MOD_ID, path);
-    }
+    public static Identifier id(String path) { return Identifier.fromNamespaceAndPath(MOD_ID, path); }
 
     @Override
     public void onInitialize() {
+        ModBlocks.initialize();
         ModPoiTypes.initialize();
         ModVillagerProfessions.initialize();
         MinerMarketRuntime.reload();
@@ -29,6 +29,6 @@ public final class CentralEconomyMod implements ModInitializer {
         MinerInteractionService.initialize();
         MinerEmploymentService.initialize();
         CentralEconomyCommands.initialize();
-        LOGGER.info("Central Economy Miner 0.6.1 initialized");
+        LOGGER.info("Central Economy 1.0.0 initialized: 10 workstation professions + wandering trader market");
     }
 }

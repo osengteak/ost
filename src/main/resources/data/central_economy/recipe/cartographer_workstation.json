@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "key": {
+    "P": "minecraft:paper",
+    "M": "minecraft:map",
+    "C": "minecraft:compass",
+    "W": "#minecraft:planks"
+  },
+  "pattern": [
+    "PPP",
+    "MCM",
+    "WWW"
+  ],
+  "result": {
+    "id": "central_economy:cartographer_workstation"
+  }
+}

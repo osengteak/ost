@@ -1,4 +1,22 @@
 {
+  "block.central_economy.farmer_workstation": "Agricultural Workstation",
+  "entity.central_economy.villager.farmer": "Farmer",
+  "block.central_economy.rancher_workstation": "Livestock Workstation",
+  "entity.central_economy.villager.rancher": "Rancher",
+  "block.central_economy.fisher_workstation": "Fishery Workstation",
+  "entity.central_economy.villager.fisher": "Fisher",
+  "block.central_economy.miner_workstation": "Mineral Workstation",
   "entity.central_economy.villager.miner": "Miner",
-  "entity.central_economy.villager.miner_badge": "[Miner]"
+  "block.central_economy.lumberjack_workstation": "Logging Workstation",
+  "entity.central_economy.villager.lumberjack": "Lumberjack",
+  "block.central_economy.mason_workstation": "Masonry Workstation",
+  "entity.central_economy.villager.mason": "Mason",
+  "block.central_economy.fletcher_workstation": "Arrowmaking Workstation",
+  "entity.central_economy.villager.fletcher": "Arrow Maker",
+  "block.central_economy.librarian_workstation": "Enchanted Book Workstation",
+  "entity.central_economy.villager.librarian": "Librarian",
+  "block.central_economy.cleric_workstation": "Alchemy Workstation",
+  "entity.central_economy.villager.cleric": "Cleric",
+  "block.central_economy.cartographer_workstation": "Drafting Workstation",
+  "entity.central_economy.villager.cartographer": "Cartographer"
 }

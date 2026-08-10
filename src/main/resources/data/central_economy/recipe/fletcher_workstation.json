@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "key": {
+    "F": "minecraft:flint",
+    "S": "minecraft:stick",
+    "A": "minecraft:arrow",
+    "P": "#minecraft:planks"
+  },
+  "pattern": [
+    "FFF",
+    "SAP",
+    "PPP"
+  ],
+  "result": {
+    "id": "central_economy:fletcher_workstation"
+  }
+}

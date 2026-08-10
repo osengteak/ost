@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "key": {
+    "W": "minecraft:wheat",
+    "H": "minecraft:hay_block",
+    "P": "#minecraft:planks"
+  },
+  "pattern": [
+    "WWW",
+    "PHP",
+    "PPP"
+  ],
+  "result": {
+    "id": "central_economy:farmer_workstation"
+  }
+}
