@@ -40,7 +40,7 @@ jobs:
           set -o pipefail
           python3 tools/validate_project.py 2>&1 | tee validation-output.log
 
-      - name: Run pure economy core self-test
+      - name: Run pure core UI and request self-tests
         shell: bash
         run: |
           set -o pipefail
@@ -64,9 +64,9 @@ jobs:
             echo "No installable JAR found in build/libs" | tee -a build-output.log
             exit 1
           fi
-          cp "$JAR" dist/central-economy-miner-0.6.0.jar
+          cp "$JAR" dist/central-economy-miner-0.6.1.jar
           echo "Installable JAR: $JAR" | tee -a build-output.log
-          sha256sum dist/central-economy-miner-0.6.0.jar | tee dist/SHA256.txt
+          sha256sum dist/central-economy-miner-0.6.1.jar | tee dist/SHA256.txt
 
       - name: Upload installable JAR
         if: success()

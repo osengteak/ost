@@ -41,16 +41,17 @@ public final class MinerMarketTransactions {
         sendSnapshot(player, villager, "");
     }
 
-    public static void execute(ServerPlayer player, int entityId, String direction, String commodityId) {
-        Villager villager = validatedMiner(player, entityId);
+    public static void execute(ServerPlayer player, MinerTradeRequest request) {
+        CentralEconomyMod.LOGGER.info(
+                "[CE-TRADE] execute start player={} entityId={} direction={} item={}",
+                player.getGameProfile().name(), request.entityId(), request.direction(), request.commodityId());
+
+        Villager villager = validatedMiner(player, request.entityId());
         if (villager == null) {
             CentralEconomyMod.LOGGER.warn(
-                    "[CE-MARKET] trade rejected player={} entityId={} item={} reason=invalid_miner",
-                    player.getGameProfile().name(), entityId, commodityId);
-            return;
-        }
-        if (!"BUY".equals(direction) && !"SELL".equals(direction)) {
-            sendSnapshot(player, villager, "잘못된 거래 요청");
+                    "[CE-TRADE] rejected player={} entityId={} item={} reason=invalid_miner",
+                    player.getGameProfile().name(), request.entityId(), request.commodityId());
+            player.sendSystemMessage(Component.literal("[Central Economy] 광부와 너무 멀거나 더 이상 유효한 광부가 아닙니다."), true);
             return;
         }
 
@@ -61,47 +62,95 @@ public final class MinerMarketTransactions {
         long cycle = engine.cycleId(overworld == null ? 0L : overworld.getGameTime());
         engine.ensureCycle(saved.state(), cycle);
 
+        String commodityId = request.commodityId();
+        if (engine.plan().commodity(commodityId) == null) {
+            CentralEconomyMod.LOGGER.warn(
+                    "[CE-TRADE] rejected player={} item={} reason=not_in_plan",
+                    player.getGameProfile().name(), commodityId);
+            sendSnapshot(player, villager, "거래 대상이 아닌 품목입니다: " + commodityId);
+            return;
+        }
+
         Item commodity = resolveItem(commodityId);
         if (commodity == null || commodity == Items.AIR) {
+            CentralEconomyMod.LOGGER.warn(
+                    "[CE-TRADE] rejected player={} item={} reason=unknown_item_registry",
+                    player.getGameProfile().name(), commodityId);
             sendSnapshot(player, villager, "등록되지 않은 품목: " + commodityId);
             return;
         }
 
         String message;
-        if ("SELL".equals(direction)) {
-            ProcurementQuote q = engine.quoteProcurement(saved.state(), player.getUUID(), commodityId, cycle);
-            if (!q.open()) {
-                message = "이 품목의 이번 계획주기 매입 한도가 끝났습니다.";
-            } else if (count(player, commodity) < q.itemCount()) {
-                message = "판매할 물품이 부족합니다. " + q.itemCount() + "개가 필요합니다.";
-            } else {
-                removeExactly(player, commodity, q.itemCount());
-                engine.consumeProcurement(saved.state(), player.getUUID(), commodityId, cycle);
-                giveOrDrop(player, new ItemStack(Items.EMERALD, q.emeralds()));
-                saved.touch();
-                message = "국가 매입 " + q.tier() + "단계: " + q.itemCount() + "개 → 에메랄드 " + q.emeralds() + "개";
-                CentralEconomyMod.LOGGER.info(
-                        "[CE-TRADE] SELL player={} item={} tier={} items={} emeralds={} cycle={}",
-                        player.getGameProfile().name(), commodityId, q.tier(), q.itemCount(), q.emeralds(), cycle);
-            }
+        if (request.direction() == MinerTradeRequest.Direction.SELL) {
+            message = executeSell(player, saved, engine, cycle, commodityId, commodity);
         } else {
-            RetailQuote q = engine.quoteRetail(saved.state(), commodityId);
-            if (!q.available()) {
-                message = retailReason(q.reason());
-            } else if (count(player, Items.EMERALD) < q.emeralds()) {
-                message = "에메랄드가 부족합니다. " + q.emeralds() + "개가 필요합니다.";
-            } else {
-                removeExactly(player, Items.EMERALD, q.emeralds());
-                engine.consumeRetail(saved.state(), commodityId);
-                giveOrDrop(player, new ItemStack(commodity, q.itemCount()));
-                saved.touch();
-                message = "국가 판매: 에메랄드 " + q.emeralds() + "개 → " + q.itemCount() + "개";
-                CentralEconomyMod.LOGGER.info(
-                        "[CE-TRADE] BUY player={} item={} items={} emeralds={} cycle={}",
-                        player.getGameProfile().name(), commodityId, q.itemCount(), q.emeralds(), cycle);
-            }
+            message = executeBuy(player, saved, engine, commodityId, commodity);
         }
+
+        // Direct stack mutation must mark the authoritative inventory dirty so
+        // vanilla's normal inventory synchronization sees the change immediately.
+        player.getInventory().setChanged();
         sendSnapshot(player, villager, message);
+    }
+
+    private static String executeSell(
+            ServerPlayer player,
+            MarketSavedData saved,
+            MinerMarketEngine engine,
+            long cycle,
+            String commodityId,
+            Item commodity) {
+        ProcurementQuote q = engine.quoteProcurement(saved.state(), player.getUUID(), commodityId, cycle);
+        if (!q.open()) return "이 품목의 이번 계획주기 매입 한도가 끝났습니다.";
+
+        int available = count(player, commodity);
+        if (available < q.itemCount()) {
+            CentralEconomyMod.LOGGER.info(
+                    "[CE-TRADE] SELL denied player={} item={} have={} need={} reason=insufficient_items",
+                    player.getGameProfile().name(), commodityId, available, q.itemCount());
+            return "판매할 물품이 부족합니다. " + q.itemCount() + "개가 필요합니다.";
+        }
+
+        // Server thread: no other inventory mutation can interleave between the
+        // validated count and the exact removal below.
+        removeExactly(player, commodity, q.itemCount());
+        engine.consumeProcurement(saved.state(), player.getUUID(), commodityId, cycle);
+        giveOrDrop(player, new ItemStack(Items.EMERALD, q.emeralds()));
+        saved.touch();
+
+        CentralEconomyMod.LOGGER.info(
+                "[CE-TRADE] SELL committed player={} item={} tier={} items={} emeralds={} cycle={}",
+                player.getGameProfile().name(), commodityId, q.tier(), q.itemCount(), q.emeralds(), cycle);
+        return "국가 매입 " + q.tier() + "단계: " + q.itemCount() + "개 → 에메랄드 " + q.emeralds() + "개";
+    }
+
+    private static String executeBuy(
+            ServerPlayer player,
+            MarketSavedData saved,
+            MinerMarketEngine engine,
+            String commodityId,
+            Item commodity) {
+        RetailQuote q = engine.quoteRetail(saved.state(), commodityId);
+        if (!q.available()) return retailReason(q.reason());
+
+        int emeralds = count(player, Items.EMERALD);
+        if (emeralds < q.emeralds()) {
+            CentralEconomyMod.LOGGER.info(
+                    "[CE-TRADE] BUY denied player={} item={} haveE={} needE={} reason=insufficient_emeralds",
+                    player.getGameProfile().name(), commodityId, emeralds, q.emeralds());
+            return "에메랄드가 부족합니다. " + q.emeralds() + "개가 필요합니다.";
+        }
+
+        removeExactly(player, Items.EMERALD, q.emeralds());
+        engine.consumeRetail(saved.state(), commodityId);
+        giveOrDrop(player, new ItemStack(commodity, q.itemCount()));
+        saved.touch();
+
+        CentralEconomyMod.LOGGER.info(
+                "[CE-TRADE] BUY committed player={} item={} items={} emeralds={} remainingStock={}",
+                player.getGameProfile().name(), commodityId, q.itemCount(), q.emeralds(),
+                saved.state().retailStock().getOrDefault(commodityId, 0));
+        return "국가 판매: 에메랄드 " + q.emeralds() + "개 → " + q.itemCount() + "개";
     }
 
     public static void sendSnapshot(ServerPlayer player, Villager villager, String message) {
@@ -176,6 +225,7 @@ public final class MinerMarketTransactions {
             remaining -= take;
         }
         if (remaining != 0) throw new IllegalStateException("inventory changed during validated transaction");
+        inventory.setChanged();
     }
 
     private static void giveOrDrop(ServerPlayer player, ItemStack stack) {

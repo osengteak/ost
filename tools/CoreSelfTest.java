@@ -24,13 +24,13 @@ public final class CoreSelfTest {
                 new TierPlan(2, 1, 1, 0.0),
                 new TierPlan(4, 1, 1, 0.0),
                 new RetailPlan(3, 2, 2, 1.0, "none")));
-        commodities.put("minecraft:raw_iron", new CommodityPlan(
-                "minecraft:raw_iron",
+        commodities.put("minecraft:coal", new CommodityPlan(
+                "minecraft:coal",
                 new TierPlan(3, 1, 1, 0.0),
                 new TierPlan(6, 1, 1, 0.0),
-                null));
+                new RetailPlan(5, 2, 2, 1.0, "none")));
 
-        MinerMarketEngine engine = new MinerMarketEngine(new MinerPlan(1, 7, commodities));
+        MinerMarketEngine engine = new MinerMarketEngine(new MinerPlan(2, 7, commodities));
         MarketMutableState state = new MarketMutableState();
         UUID playerA = UUID.fromString("11111111-1111-1111-1111-111111111111");
         UUID playerB = UUID.fromString("22222222-2222-2222-2222-222222222222");

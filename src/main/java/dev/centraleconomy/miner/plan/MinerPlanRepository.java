@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -32,16 +33,22 @@ public final class MinerPlanRepository {
     public synchronized MinerPlan loadOrReload() {
         try {
             Files.createDirectories(configPath.getParent());
+            JsonObject bundled = readBundled();
+            int bundledSchema = requiredInt(bundled, "schema");
+
             if (Files.notExists(configPath)) {
-                try (InputStream in = MinerPlanRepository.class.getResourceAsStream(BUNDLED)) {
-                    if (in == null) throw new IOException("bundled miner_plan.json missing");
-                    Files.copy(in, configPath, StandardCopyOption.REPLACE_EXISTING);
-                }
+                writeConfig(bundled);
+                CentralEconomyMod.LOGGER.info("Created default miner_plan.json schema={}", bundledSchema);
+            } else {
+                migrateOlderConfigIfNeeded(bundled, bundledSchema);
             }
+
             try (Reader reader = Files.newBufferedReader(configPath, StandardCharsets.UTF_8)) {
                 current = parse(JsonParser.parseReader(reader).getAsJsonObject());
             }
-            CentralEconomyMod.LOGGER.info("Loaded miner economy plan: {} commodities, {} day cycle", current.commodities().size(), current.planningCycleDays());
+            CentralEconomyMod.LOGGER.info(
+                    "Loaded miner economy plan: schema={}, {} commodities, {} day cycle",
+                    current.schema(), current.commodities().size(), current.planningCycleDays());
             return current;
         } catch (Exception e) {
             throw new IllegalStateException("Failed to load " + configPath, e);
@@ -55,6 +62,49 @@ public final class MinerPlanRepository {
     }
 
     public Path configPath() { return configPath; }
+
+    private JsonObject readBundled() throws IOException {
+        try (InputStream in = MinerPlanRepository.class.getResourceAsStream(BUNDLED)) {
+            if (in == null) throw new IOException("bundled miner_plan.json missing");
+            String json = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            return JsonParser.parseString(json).getAsJsonObject();
+        }
+    }
+
+    private void migrateOlderConfigIfNeeded(JsonObject bundled, int bundledSchema) throws IOException {
+        JsonObject existing;
+        try (Reader reader = Files.newBufferedReader(configPath, StandardCharsets.UTF_8)) {
+            existing = JsonParser.parseReader(reader).getAsJsonObject();
+        } catch (RuntimeException e) {
+            Path backup = configPath.resolveSibling("miner_plan.invalid.backup.json");
+            Files.copy(configPath, backup, StandardCopyOption.REPLACE_EXISTING);
+            writeConfig(bundled);
+            CentralEconomyMod.LOGGER.warn(
+                    "Existing miner_plan.json was invalid; backed it up to {} and restored bundled schema",
+                    backup);
+            return;
+        }
+
+        int existingSchema = existing.has("schema") ? existing.get("schema").getAsInt() : 0;
+        if (existingSchema < bundledSchema) {
+            Path backup = configPath.resolveSibling("miner_plan.schema" + existingSchema + ".backup.json");
+            Files.copy(configPath, backup, StandardCopyOption.REPLACE_EXISTING);
+            writeConfig(bundled);
+            CentralEconomyMod.LOGGER.info(
+                    "Migrated miner_plan.json schema {} -> {}; previous file backed up to {}",
+                    existingSchema, bundledSchema, backup);
+        }
+    }
+
+    private void writeConfig(JsonObject root) throws IOException {
+        Files.writeString(
+                configPath,
+                GSON.toJson(root) + System.lineSeparator(),
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING,
+                StandardOpenOption.WRITE);
+    }
 
     private static MinerPlan parse(JsonObject root) {
         int schema = requiredInt(root, "schema");

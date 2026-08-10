@@ -1,79 +1,62 @@
-# Central Economy - Miner v0.6.0
+# Central Economy - Miner v0.6.1
 
-Minecraft Java Edition 26.2 / Fabric miner-only vertical slice.
+Minecraft Java 26.2 / Fabric miner vertical slice for the central-planning economy project.
 
-## What changed in 0.6.0
+## v0.6.1 target
 
-The 0.5.x implementation treated the vanilla `VillagerProfession` holder as the authority for miner employment. In real play, Minecraft's villager brain could rewrite that holder because the fallback employment system had not originated from vanilla JOB_SITE memory. The symptom was a `became miner` log every second and market interaction silently failing whenever the holder had already returned to NONE.
+This revision is deliberately narrow: make the miner market usable before adding another profession.
 
-v0.6.0 uses a persisted **employment contract** as the gameplay authority:
+- Chiseled quartz remains the miner workstation.
+- Employment is a persisted 1:1 villager/workstation contract.
+- Breaking the assigned workstation releases the auto-employed miner back to unemployed and removes the mod-owned `[광부]` badge.
+- The market panel is responsive and centered; there is no horizontal scrolling requirement.
+- Commodity rows use vertical mouse-wheel scrolling when the list is taller than the available screen area.
+- The old fixed six-row page layout is gone.
+- Raw copper, raw iron and raw gold are **not traded at all**.
+- The miner catalog is exactly: coal, copper ingot, iron ingot, redstone, lapis lazuli, gold ingot, diamond.
+- Buy/sell actions are server-authoritative. The client sends only a requested action; the server validates miner distance/contract, current plan membership, inventory, emeralds, quota and stock before committing.
+- Every trade refreshes the authoritative market snapshot so quota, stock and status messages update on screen.
 
-- key: villager UUID
-- value: dimension + claimed chiseled quartz block position
-- one workstation is claimed by at most one miner
-- a valid claim keeps the villager employed without re-running profession assignment
-- breaking the claimed chiseled quartz block removes the contract, clears `[광부]`, and returns the registered miner profession to NONE
-- market interaction and transaction validation use the same persisted contract
+## Existing config migration
 
-The registered `central_economy:miner` profession is still assigned once on hire, but the economy no longer breaks if vanilla later rewrites that internal holder.
+v0.6.0 may already have created `config/central_economy/miner_plan.json` with schema 1 and raw ores. v0.6.1 bundles schema 2.
 
-## Expected gameplay
+On startup, if the existing file has an older schema, the mod backs it up as `miner_plan.schema1.backup.json` and installs the bundled schema-2 plan. A malformed existing plan is backed up as `miner_plan.invalid.backup.json` before recovery.
 
-1. Place a **Chiseled Quartz Block** near an adult unemployed villager.
-2. Within about one second, the villager receives a visible gold `[광부]` badge.
-3. Right-click the miner.
-4. The **광부 중앙시장** screen opens.
-5. Selling uses player UUID + commodity + planning cycle A/B procurement quotas.
-6. Buying uses server-wide shared retail stock.
-7. Break that miner's claimed Chiseled Quartz Block.
-8. Within about one second, `[광부]` disappears and the villager becomes unemployed again.
+## Trade diagnostics
 
-## Economic scope
+`latest.log` now marks the whole request path. A successful transaction should contain a chain similar to:
 
-State procurement (10): coal, raw copper, copper ingot, raw iron, iron ingot, redstone, lapis lazuli, raw gold, gold ingot, diamond.
+```text
+[CE-TRADE] client sending ...
+[CE-TRADE] server received ...
+[CE-TRADE] execute start ...
+[CE-TRADE] SELL committed ...   or   BUY committed ...
+[CE-MARKET] snapshot sent ...
+[CE-MARKET] client received snapshot ...
+```
 
-State retail (7): coal, copper ingot, iron ingot, redstone, lapis lazuli, gold ingot, diamond. Raw ores are not retailed.
-
-The planning cycle is 7 Minecraft days. Prices, lot sizes, quotas, retail stock, activation probability and gates are loaded from `miner_plan.json`.
-
-## Diagnostics
-
-`latest.log` now contains staged markers:
-
-- `[CE-EMPLOY] hired ...`
-- `[CE-MARKET] interact ... activeMiner=true`
-- `[CE-MARKET] open request ...`
-- `[CE-MARKET] snapshot built ...`
-- `[CE-MARKET] snapshot sent ...`
-- `[CE-MARKET] client received snapshot ...`
-- `[CE-MARKET] client opened miner market screen ...`
-- `[CE-TRADE] BUY/SELL ...`
-- `[CE-EMPLOY] miner ... became unemployed: workstation removed`
-
-This makes a failed interaction localizable from one log file.
+If the server has not declared the trade payload, the client shows an error instead of silently doing nothing. A request that receives no snapshot times out after about five seconds and tells the tester to inspect `[CE-TRADE]` in `latest.log`.
 
 ## Build
 
-Push the project to GitHub. `Build Miner Mod` runs automatically and performs:
+GitHub Actions runs, in order:
 
-1. Java 25 setup
-2. source/economy invariant validation
-3. pure central-economy core self-test
-4. actual Fabric 26.2 Loom/Gradle build
-5. installable JAR artifact creation
+1. `python3 tools/validate_project.py`
+2. `bash tools/run_core_self_test.sh`
+3. a real Fabric/Loom `gradle clean build`
+4. packaging of `central-economy-miner-0.6.1.jar`
 
-On success download artifact `central-economy-miner-jar` and put `central-economy-miner-0.6.0.jar` in the same mods directory as Fabric API and Essential.
+The installable artifact is named `central-economy-miner-jar`.
 
-## Test checklist
+## Runtime acceptance test
 
-- [ ] Mod loads on Minecraft 26.2 Fabric + Essential
-- [ ] Adult unemployed villager claims one chiseled quartz workstation
-- [ ] `[광부]` appears once; `latest.log` does not spam re-hiring every second
-- [ ] Second villager cannot claim the same workstation
-- [ ] Right-click logs `activeMiner=true`
-- [ ] Market snapshot is sent and client screen opens
-- [ ] A quota transitions to B where applicable
-- [ ] A/B quota is shared across all miner NPCs for the same player
-- [ ] Retail stock is shared across all miner NPCs
-- [ ] Restart preserves quotas, stock and workstation claims
-- [ ] Breaking the claimed workstation clears `[광부]` and returns villager to unemployed
+Use a new creative test world. Spawn an adult unemployed villager, place a chiseled quartz block, verify `[광부]`, open the miner market, then test both directions with enough inventory:
+
+- sell one displayed procurement lot and verify the item count falls, emeralds rise, A/B quota changes, and shared state refreshes;
+- buy one displayed retail lot and verify emeralds fall, the commodity arrives, and shared stock falls;
+- resize/change GUI scale and verify the rightmost column stays on-screen;
+- if more rows exist than fit, place the pointer over the list and use the mouse wheel;
+- break the assigned chiseled quartz block and verify the badge disappears and the villager returns to unemployed.
+
+A green GitHub Actions build proves compilation and the included deterministic tests; live Minecraft behavior still requires this runtime test.

@@ -1,46 +1,42 @@
-# Validation report - Miner v0.6.0
+# Validation report - Miner v0.6.1
 
-## Executed locally
+## Automated checks included
 
-`python3 tools/validate_project.py`
+`tools/validate_project.py` checks source/config invariants including:
 
-Result: **PASS**
+- stable employment-contract authority and workstation unemployment path;
+- normal server-side villager interaction path;
+- networking initialization;
+- responsive market layout and removal of fixed six-row pagination;
+- vertical mouse-wheel scroll implementation;
+- client sendability check and staged `[CE-TRADE]` diagnostics;
+- server commodity whitelist validation and authoritative transaction refresh;
+- schema-1-to-schema-2 plan migration/backup path;
+- exactly 7 miner commodities;
+- raw copper/raw iron/raw gold absent from all miner trading;
+- A procurement unit value not below B industrial unit value;
+- retail unit price above both procurement unit prices for every commodity.
 
-Validated:
-- server interaction hook is initialized
-- client no longer intercepts villager clicks
-- market open/trade authorization uses persisted employment claims
-- valid claims do not re-run profession assignment every second
-- workstation removal path clears claim, badge and miner profession
-- 7-day planning cycle
-- 10 procurement commodities
-- exactly 7 retail commodities
-- no raw ore retail
-- A livelihood unit price is never below B industrial unit price
-- no direct same-item procurement/retail arbitrage for overlapping commodities
+`tools/run_core_self_test.sh` compiles and executes pure Java tests without Minecraft:
 
-`bash tools/run_core_self_test.sh`
+- A -> B procurement transition;
+- per-player quota separation;
+- procurement adding physical shared stock;
+- retail consuming shared stock;
+- deterministic quota rolls;
+- 7-day cycle reset;
+- responsive layout bounds at 320x240 through 1648x928;
+- compact-screen vertical scrolling math;
+- BUY/SELL trade-request round trips and malformed-request rejection.
 
-Result: **PASS: central economy core invariants**
+## Local result for this package
 
-Validated:
-- A -> B procurement transition
-- player-specific quota state
-- shared retail stock
-- procurement adds physical retail stock where applicable
-- retail decrements shared stock
-- deterministic quota rolls
-- cycle reset clears quota usage and restores planned retail stock
-- 7 Minecraft days = 168000 ticks
+```text
+PASS: project validation complete
+PASS: central economy core invariants
+PASS: responsive UI layout and trade request invariants
+```
 
-## Static code review findings addressed
+## Not claimed by local tests
 
-1. **0.5.x repeated hire loop:** fixed by making the persisted workstation claim authoritative after first hire.
-2. **0.5.x market silently not opening:** fixed by initializing one server-side `UseEntityCallback` and validating the claim rather than the volatile profession holder.
-3. **Client/server click ambiguity:** normal gameplay no longer requires a client click C2S packet. The client only receives the market snapshot.
-4. **Workstation destruction:** invalid claim causes unemployment and `[광부]` badge removal.
-5. **Diagnostics:** staged `[CE-EMPLOY]`, `[CE-MARKET]`, and `[CE-TRADE]` log markers were added.
-
-## Not executable in this environment
-
-The current environment cannot resolve Fabric/Minecraft Maven hosts, so an actual Loom/Minecraft 26.2 compile cannot be run here. The included GitHub Actions workflow performs the remaining authoritative compile using Java 25 and Gradle 9.5.1. A green Actions run is required before treating the JAR as installable.
+This environment does not contain a working local Fabric/Loom toolchain, so Minecraft-linked classes are not compiled here. GitHub Actions performs the real Minecraft 26.2/Fabric compile. A successful build is still not a substitute for opening the game and exercising a real transaction.

@@ -29,6 +29,6 @@ public final class CentralEconomyMod implements ModInitializer {
         MinerInteractionService.initialize();
         MinerEmploymentService.initialize();
         CentralEconomyCommands.initialize();
-        LOGGER.info("Central Economy Miner 0.6.0 initialized");
+        LOGGER.info("Central Economy Miner 0.6.1 initialized");
     }
 }
