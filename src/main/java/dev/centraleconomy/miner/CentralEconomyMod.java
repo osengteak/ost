@@ -3,8 +3,8 @@ package dev.centraleconomy.miner;
 import dev.centraleconomy.miner.command.CentralEconomyCommands;
 import dev.centraleconomy.miner.market.MinerMarketRuntime;
 import dev.centraleconomy.miner.net.MinerMarketNetworking;
-import dev.centraleconomy.miner.villager.MinerInteractionService;
 import dev.centraleconomy.miner.villager.MinerEmploymentService;
+import dev.centraleconomy.miner.villager.MinerInteractionService;
 import dev.centraleconomy.miner.villager.ModPoiTypes;
 import dev.centraleconomy.miner.villager.ModVillagerProfessions;
 import net.fabricmc.api.ModInitializer;
@@ -22,7 +22,6 @@ public final class CentralEconomyMod implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        // Registration order matters: workstation POI -> profession -> data/runtime -> packets/events/commands.
         ModPoiTypes.initialize();
         ModVillagerProfessions.initialize();
         MinerMarketRuntime.reload();
@@ -30,6 +29,6 @@ public final class CentralEconomyMod implements ModInitializer {
         MinerInteractionService.initialize();
         MinerEmploymentService.initialize();
         CentralEconomyCommands.initialize();
-        LOGGER.info("Central Economy Miner GitHub build source 0.5.3 initialized");
+        LOGGER.info("Central Economy Miner 0.6.0 initialized");
     }
 }

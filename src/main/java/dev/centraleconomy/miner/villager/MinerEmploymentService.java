@@ -17,18 +17,20 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Deterministic miner employment around minecraft:chiseled_quartz_block.
+ * Authoritative employment state machine for the miner vertical slice.
  *
- * The normal custom POI/profession registration is still present. This service
- * is an explicit server-side fallback so that the miner vertical slice does not
- * depend on vanilla brain scheduling to become testable/playable.
+ * <p>The persistent workstation claim is the source of truth. The registered
+ * VillagerProfession is still assigned once on hire for normal Minecraft
+ * semantics/appearance, but market access does not depend on vanilla keeping
+ * that holder forever. This avoids the 0.5.x loop where vanilla reset the
+ * profession and the mod re-hired/logged the same villager every second.</p>
  *
- * Rules:
- *  - one chiseled quartz workstation -> at most one automatically-employed miner
- *  - unemployed adult villagers within 8x4x8 can become miners
- *  - automatically-employed miners lose the profession if their claimed block is removed
- *  - command-spawned/custom miners without an automatic claim are preserved
- *  - every miner gets a visible [광부] badge unless the player gave it a custom name
+ * <p>State machine:</p>
+ * <pre>
+ * NONE + free chiseled quartz -> claim -> MINER badge/attempt profession
+ * valid claim                -> stable employed miner (no re-hire)
+ * claimed block removed      -> claim removed -> profession NONE -> badge removed
+ * </pre>
  */
 public final class MinerEmploymentService {
     private static final int INTERVAL_TICKS = 20;
@@ -42,70 +44,187 @@ public final class MinerEmploymentService {
         ServerTickEvents.END_LEVEL_TICK.register(MinerEmploymentService::tick);
     }
 
+    /** Server-authoritative miner check used by interaction and transaction code. */
+    public static boolean isActiveMiner(ServerLevel level, Villager villager) {
+        if (level.getServer() == null || villager == null || !villager.isAlive() || villager.isBaby()) return false;
+        MarketSavedData saved = MarketSavedData.get(level.getServer());
+        return hasValidClaim(level, villager, saved.state().workstationClaims().get(villager.getUUID()));
+    }
+
+    public static WorkstationClaim claimFor(ServerLevel level, Villager villager) {
+        if (level.getServer() == null) return null;
+        WorkstationClaim claim = MarketSavedData.get(level.getServer()).state().workstationClaims().get(villager.getUUID());
+        return hasValidClaim(level, villager, claim) ? claim : null;
+    }
+
     private static void tick(ServerLevel level) {
         if (level.getGameTime() % INTERVAL_TICKS != 0) return;
         if (level.getServer() == null || level.players().isEmpty()) return;
 
         MarketSavedData saved = MarketSavedData.get(level.getServer());
-        String dimension = level.dimension().toString();
-
+        String dimension = dimensionId(level);
         Map<UUID, Villager> nearby = collectNearbyVillagers(level);
-        boolean dirty = cleanupClaims(level, saved, dimension, nearby);
 
-        Set<Long> claimed = new HashSet<>();
+        boolean dirty = reconcileExistingClaims(level, saved, dimension, nearby);
+
+        Set<Long> claimedPositions = new HashSet<>();
         saved.state().workstationClaims().values().stream()
                 .filter(c -> c.dimensionId().equals(dimension))
-                .forEach(c -> claimed.add(c.blockPos()));
+                .forEach(c -> claimedPositions.add(c.blockPos()));
 
         for (Villager villager : nearby.values()) {
             if (!villager.isAlive() || villager.isBaby()) continue;
 
-            if (isMiner(villager)) {
-                MinerVisualIdentity.ensure(villager);
+            WorkstationClaim current = saved.state().workstationClaims().get(villager.getUUID());
+            if (hasValidClaim(level, villager, current)) {
+                // Stable state. Never re-run setVillagerData here.
+                MinerVisualIdentity.ensureBadge(villager);
+                continue;
+            }
 
-                // Command-created miners may have no claim. If a workstation is
-                // nearby, claim one; otherwise leave the explicit profession alone.
-                if (!saved.state().workstationClaims().containsKey(villager.getUUID())) {
-                    BlockPos workstation = nearestFreeWorkstation(level, villager, claimed);
-                    if (workstation != null) {
-                        long packed = workstation.asLong();
-                        saved.state().workstationClaims().put(
-                                villager.getUUID(), new WorkstationClaim(dimension, packed));
-                        claimed.add(packed);
-                        dirty = true;
-                    }
+            // A custom miner produced by a command/debug tool can attach to a free
+            // workstation. Without a workstation it is not an active market endpoint.
+            if (isRegisteredMinerProfession(villager)) {
+                BlockPos workstation = nearestFreeWorkstation(level, villager, claimedPositions);
+                if (workstation != null) {
+                    createClaim(saved, dimension, villager, workstation, claimedPositions);
+                    MinerVisualIdentity.ensureBadge(villager);
+                    dirty = true;
+                    CentralEconomyMod.LOGGER.info(
+                            "[CE-EMPLOY] attached existing miner {} to workstation {}",
+                            villager.getUUID(), workstation);
                 }
                 continue;
             }
 
+            // Only truly unemployed adult villagers can be hired automatically.
             if (!villager.getVillagerData().profession().is(VillagerProfession.NONE)) continue;
 
-            BlockPos workstation = nearestFreeWorkstation(level, villager, claimed);
+            BlockPos workstation = nearestFreeWorkstation(level, villager, claimedPositions);
             if (workstation == null) continue;
 
+            long packed = workstation.asLong();
+            saved.state().workstationClaims().put(villager.getUUID(), new WorkstationClaim(dimension, packed));
+            claimedPositions.add(packed);
+            dirty = true;
+
             try {
+                // One assignment attempt only. The persistent claim remains the
+                // gameplay authority even if vanilla later rewrites this holder.
                 villager.setVillagerData(
                         villager.getVillagerData().withProfession(
                                 level.registryAccess(), ModVillagerProfessions.MINER_KEY));
-                MinerVisualIdentity.ensure(villager);
-
-                long packed = workstation.asLong();
-                saved.state().workstationClaims().put(
-                        villager.getUUID(), new WorkstationClaim(dimension, packed));
-                claimed.add(packed);
-                dirty = true;
-
+                MinerVisualIdentity.ensureBadge(villager);
                 CentralEconomyMod.LOGGER.info(
-                        "Villager {} became miner at chiseled quartz workstation {}",
+                        "[CE-EMPLOY] hired villager {} as miner at {}",
                         villager.getUUID(), workstation);
             } catch (RuntimeException e) {
+                // Never leave a half-created employment contract.
+                saved.state().workstationClaims().remove(villager.getUUID());
+                claimedPositions.remove(packed);
+                dirty = true;
                 CentralEconomyMod.LOGGER.error(
-                        "Could not assign miner profession to villager {}",
+                        "[CE-EMPLOY] failed to assign miner profession to {}",
                         villager.getUUID(), e);
             }
         }
 
         if (dirty) saved.touch();
+    }
+
+    /**
+     * Reconciles loaded villagers with their persisted employment contracts.
+     * Claims are deliberately retained while a villager is outside the active
+     * scan so unloading a chunk cannot silently erase employment.
+     */
+    private static boolean reconcileExistingClaims(
+            ServerLevel level,
+            MarketSavedData saved,
+            String dimension,
+            Map<UUID, Villager> nearby) {
+        boolean dirty = false;
+        var iterator = saved.state().workstationClaims().entrySet().iterator();
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            WorkstationClaim claim = entry.getValue();
+            if (!claim.dimensionId().equals(dimension)) continue;
+
+            Villager villager = nearby.get(entry.getKey());
+            if (villager == null) continue;
+
+            BlockPos pos = BlockPos.of(claim.blockPos());
+            boolean workstationExists = level.getBlockState(pos).is(Blocks.CHISELED_QUARTZ_BLOCK);
+            if (!workstationExists) {
+                iterator.remove();
+                dirty = true;
+                releaseVillager(level, villager, "workstation removed");
+                continue;
+            }
+
+            // If some other system deliberately assigned a different non-NONE
+            // profession, relinquish our claim instead of fighting it forever.
+            boolean none = villager.getVillagerData().profession().is(VillagerProfession.NONE);
+            boolean registeredMiner = isRegisteredMinerProfession(villager);
+            if (!none && !registeredMiner) {
+                iterator.remove();
+                dirty = true;
+                MinerVisualIdentity.clearIfOurs(villager);
+                CentralEconomyMod.LOGGER.info(
+                        "[CE-EMPLOY] released claim for {} because another profession took over",
+                        villager.getUUID());
+                continue;
+            }
+
+            // NONE is acceptable here: vanilla may have reset the custom holder,
+            // but the persisted contract still defines the miner gameplay state.
+            MinerVisualIdentity.ensureBadge(villager);
+        }
+        return dirty;
+    }
+
+    private static void releaseVillager(ServerLevel level, Villager villager, String reason) {
+        try {
+            if (isRegisteredMinerProfession(villager)) {
+                villager.setVillagerData(
+                        villager.getVillagerData().withProfession(
+                                level.registryAccess(), VillagerProfession.NONE));
+            }
+            MinerVisualIdentity.clearIfOurs(villager);
+            CentralEconomyMod.LOGGER.info(
+                    "[CE-EMPLOY] miner {} became unemployed: {}",
+                    villager.getUUID(), reason);
+        } catch (RuntimeException e) {
+            CentralEconomyMod.LOGGER.error(
+                    "[CE-EMPLOY] could not release miner {}",
+                    villager.getUUID(), e);
+        }
+    }
+
+    private static void createClaim(
+            MarketSavedData saved,
+            String dimension,
+            Villager villager,
+            BlockPos workstation,
+            Set<Long> claimedPositions) {
+        long packed = workstation.asLong();
+        saved.state().workstationClaims().put(
+                villager.getUUID(), new WorkstationClaim(dimension, packed));
+        claimedPositions.add(packed);
+    }
+
+    private static boolean hasValidClaim(ServerLevel level, Villager villager, WorkstationClaim claim) {
+        if (claim == null) return false;
+        if (!claim.dimensionId().equals(dimensionId(level))) return false;
+        BlockPos pos = BlockPos.of(claim.blockPos());
+        return level.getBlockState(pos).is(Blocks.CHISELED_QUARTZ_BLOCK);
+    }
+
+    private static boolean isRegisteredMinerProfession(Villager villager) {
+        return villager.getVillagerData().profession().is(ModVillagerProfessions.MINER_KEY);
+    }
+
+    private static String dimensionId(ServerLevel level) {
+        return level.dimension().toString();
     }
 
     private static Map<UUID, Villager> collectNearbyVillagers(ServerLevel level) {
@@ -118,71 +237,6 @@ public final class MinerEmploymentService {
             for (Villager villager : villagers) result.put(villager.getUUID(), villager);
         }
         return result;
-    }
-
-    /**
-     * Clean stale automatic claims. A miner created by this employment service
-     * reverts to NONE if its claimed chiseled-quartz block disappears.
-     */
-    private static boolean cleanupClaims(
-            ServerLevel level,
-            MarketSavedData saved,
-            String dimension,
-            Map<UUID, Villager> nearby) {
-        boolean dirty = false;
-        var iterator = saved.state().workstationClaims().entrySet().iterator();
-        while (iterator.hasNext()) {
-            var entry = iterator.next();
-            WorkstationClaim claim = entry.getValue();
-            if (!claim.dimensionId().equals(dimension)) continue;
-
-            BlockPos pos = BlockPos.of(claim.blockPos());
-            Villager villager = nearby.get(entry.getKey());
-            boolean blockStillValid = level.getBlockState(pos).is(Blocks.CHISELED_QUARTZ_BLOCK);
-
-            if (villager == null) {
-                // Do not discard claims merely because the villager is outside the
-                // active player scan. It will be checked when loaded/near a player.
-                if (!blockStillValid) {
-                    iterator.remove();
-                    dirty = true;
-                }
-                continue;
-            }
-
-            if (!blockStillValid) {
-                iterator.remove();
-                dirty = true;
-                if (isMiner(villager)) {
-                    try {
-                        villager.setVillagerData(
-                                villager.getVillagerData().withProfession(
-                                        level.registryAccess(), VillagerProfession.NONE));
-                        MinerVisualIdentity.clearIfOurs(villager);
-                        CentralEconomyMod.LOGGER.info(
-                                "Miner {} lost workstation and became unemployed",
-                                villager.getUUID());
-                    } catch (RuntimeException e) {
-                        CentralEconomyMod.LOGGER.error(
-                                "Could not release miner {} after workstation removal",
-                                villager.getUUID(), e);
-                    }
-                }
-                continue;
-            }
-
-            if (!isMiner(villager)) {
-                iterator.remove();
-                dirty = true;
-            } else {
-                MinerVisualIdentity.ensure(villager);
-            }
-        }
-        return dirty;
-    }
-
-    private static boolean isMiner(Villager villager) {
-        return villager.getVillagerData().profession().is(ModVillagerProfessions.MINER_KEY);
     }
 
     private static BlockPos nearestFreeWorkstation(ServerLevel level, Villager villager, Set<Long> claimed) {

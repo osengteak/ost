@@ -3,7 +3,7 @@
   "id": "central_economy",
   "version": "${version}",
   "name": "Central Economy - Miner",
-  "description": "Miner-only playable vertical slice for Minecraft 26.2: chiseled-quartz employment, visible miner badge, A/B procurement, shared retail stock, persistence and searchable market UI.",
+  "description": "Miner-only central-economy vertical slice for Minecraft 26.2: stable chiseled-quartz employment contracts, visible miner badge, workstation unemployment, A/B procurement, shared retail stock, persistence and searchable market UI.",
   "authors": [
     "OpenAI-assisted project"
   ],

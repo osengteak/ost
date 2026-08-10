@@ -1,12 +1,15 @@
 package dev.centraleconomy.miner.net;
 
+import dev.centraleconomy.miner.CentralEconomyMod;
 import dev.centraleconomy.miner.market.MarketSavedData;
 import dev.centraleconomy.miner.market.MinerMarketEngine;
 import dev.centraleconomy.miner.market.MinerMarketRuntime;
 import dev.centraleconomy.miner.market.ProcurementQuote;
 import dev.centraleconomy.miner.market.RetailQuote;
+import dev.centraleconomy.miner.villager.MinerEmploymentService;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -17,19 +20,35 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
-/** Server-authoritative adapter between player inventory and the pure central-market engine. */
+/** Server-authoritative adapter between player inventory and the central-market engine. */
 public final class MinerMarketTransactions {
     private MinerMarketTransactions() {}
 
     public static void open(ServerPlayer player, int entityId) {
+        CentralEconomyMod.LOGGER.info(
+                "[CE-MARKET] open request player={} entityId={}",
+                player.getGameProfile().name(), entityId);
+
         Villager villager = validatedMiner(player, entityId);
-        if (villager == null) return;
+        if (villager == null) {
+            CentralEconomyMod.LOGGER.warn(
+                    "[CE-MARKET] open rejected player={} entityId={} (not an active nearby miner)",
+                    player.getGameProfile().name(), entityId);
+            return;
+        }
+
+        player.sendSystemMessage(Component.literal("[Central Economy] 광부 중앙시장 여는 중..."), true);
         sendSnapshot(player, villager, "");
     }
 
     public static void execute(ServerPlayer player, int entityId, String direction, String commodityId) {
         Villager villager = validatedMiner(player, entityId);
-        if (villager == null) return;
+        if (villager == null) {
+            CentralEconomyMod.LOGGER.warn(
+                    "[CE-MARKET] trade rejected player={} entityId={} item={} reason=invalid_miner",
+                    player.getGameProfile().name(), entityId, commodityId);
+            return;
+        }
         if (!"BUY".equals(direction) && !"SELL".equals(direction)) {
             sendSnapshot(player, villager, "잘못된 거래 요청");
             return;
@@ -61,6 +80,9 @@ public final class MinerMarketTransactions {
                 giveOrDrop(player, new ItemStack(Items.EMERALD, q.emeralds()));
                 saved.touch();
                 message = "국가 매입 " + q.tier() + "단계: " + q.itemCount() + "개 → 에메랄드 " + q.emeralds() + "개";
+                CentralEconomyMod.LOGGER.info(
+                        "[CE-TRADE] SELL player={} item={} tier={} items={} emeralds={} cycle={}",
+                        player.getGameProfile().name(), commodityId, q.tier(), q.itemCount(), q.emeralds(), cycle);
             }
         } else {
             RetailQuote q = engine.quoteRetail(saved.state(), commodityId);
@@ -74,28 +96,50 @@ public final class MinerMarketTransactions {
                 giveOrDrop(player, new ItemStack(commodity, q.itemCount()));
                 saved.touch();
                 message = "국가 판매: 에메랄드 " + q.emeralds() + "개 → " + q.itemCount() + "개";
+                CentralEconomyMod.LOGGER.info(
+                        "[CE-TRADE] BUY player={} item={} items={} emeralds={} cycle={}",
+                        player.getGameProfile().name(), commodityId, q.itemCount(), q.emeralds(), cycle);
             }
         }
         sendSnapshot(player, villager, message);
     }
 
     public static void sendSnapshot(ServerPlayer player, Villager villager, String message) {
-        MinecraftServer server = ((ServerLevel) player.level()).getServer();
-        MarketSavedData saved = MarketSavedData.get(server);
-        MinerMarketEngine engine = MinerMarketRuntime.engine();
-        ServerLevel overworld = server.getLevel(ServerLevel.OVERWORLD);
-        long cycle = engine.cycleId(overworld == null ? 0L : overworld.getGameTime());
-        engine.ensureCycle(saved.state(), cycle);
-        saved.touch();
-        String json = MinerMarketSnapshot.create(villager.getId(), player, engine, saved.state(), cycle, message);
-        ServerPlayNetworking.send(player, new MinerMarketSnapshotS2CPayload(json));
+        try {
+            MinecraftServer server = ((ServerLevel) player.level()).getServer();
+            MarketSavedData saved = MarketSavedData.get(server);
+            MinerMarketEngine engine = MinerMarketRuntime.engine();
+            ServerLevel overworld = server.getLevel(ServerLevel.OVERWORLD);
+            long cycle = engine.cycleId(overworld == null ? 0L : overworld.getGameTime());
+            engine.ensureCycle(saved.state(), cycle);
+            saved.touch();
+
+            String json = MinerMarketSnapshot.create(
+                    villager.getId(), player, engine, saved.state(), cycle, message);
+            CentralEconomyMod.LOGGER.info(
+                    "[CE-MARKET] snapshot built player={} villager={} rows={} bytes={}",
+                    player.getGameProfile().name(), villager.getUUID(), engine.plan().commodities().size(), json.length());
+
+            ServerPlayNetworking.send(player, new MinerMarketSnapshotS2CPayload(json));
+            CentralEconomyMod.LOGGER.info(
+                    "[CE-MARKET] snapshot sent player={} villager={}",
+                    player.getGameProfile().name(), villager.getUUID());
+        } catch (RuntimeException e) {
+            CentralEconomyMod.LOGGER.error(
+                    "[CE-MARKET] failed to build/send market snapshot to {}",
+                    player.getGameProfile().name(), e);
+            player.sendSystemMessage(
+                    Component.literal("[Central Economy] 시장 화면 전송 중 오류가 발생했습니다. latest.log를 확인하세요."),
+                    true);
+        }
     }
 
     private static Villager validatedMiner(ServerPlayer player, int entityId) {
-        Entity entity = player.level().getEntity(entityId);
+        ServerLevel level = (ServerLevel) player.level();
+        Entity entity = level.getEntity(entityId);
         if (!(entity instanceof Villager villager)) return null;
         if (!villager.isAlive() || player.distanceToSqr(villager) > 36.0) return null;
-        if (!villager.getVillagerData().profession().is(dev.centraleconomy.miner.villager.ModVillagerProfessions.MINER_KEY)) return null;
+        if (!MinerEmploymentService.isActiveMiner(level, villager)) return null;
         return villager;
     }
 

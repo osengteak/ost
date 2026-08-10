@@ -1,34 +1,79 @@
-# Central Economy - Miner v0.5 (Minecraft Java 26.2 / Fabric)
+# Central Economy - Miner v0.6.0
 
-이 저장소는 **GitHub Actions에서 자동 빌드**하도록 준비되어 있습니다.
-내 컴퓨터에 JDK, Gradle, IntelliJ를 설치할 필요가 없습니다.
+Minecraft Java Edition 26.2 / Fabric miner-only vertical slice.
 
-## 목표 기능
+## What changed in 0.6.0
 
-- 조각된 석영 블록을 광부 작업대로 사용
-- 성인 무직 주민이 광부로 자동 취직
-- 광부가 되면 `[광부]` 표시
-- 광부 전용 중앙시장 UI
-- 플레이어별 A/B 국가매입 쿼터
-- 모든 광부가 공유하는 국가판매 재고
-- 7 Minecraft day 계획주기
-- 검색 / 즐겨찾기 / 가격정렬 / 재고 표시
-- 월드 저장 데이터 영속화
+The 0.5.x implementation treated the vanilla `VillagerProfession` holder as the authority for miner employment. In real play, Minecraft's villager brain could rewrite that holder because the fallback employment system had not originated from vanilla JOB_SITE memory. The symptom was a `became miner` log every second and market interaction silently failing whenever the holder had already returned to NONE.
 
-## GitHub에서 빌드하기
+v0.6.0 uses a persisted **employment contract** as the gameplay authority:
 
-1. GitHub에서 새 repository를 만듭니다.
-2. 이 폴더의 **내용 전체**를 repository에 업로드합니다. `.github` 폴더도 반드시 포함해야 합니다.
-3. Commit하면 `Actions` 탭에서 **Build Miner Mod**가 자동으로 시작됩니다.
-4. 초록색 체크가 뜨면 해당 실행을 열고 맨 아래 `Artifacts`에서 **central-economy-miner-jar**를 받습니다.
-5. 받은 ZIP을 풀면 `central-economy-miner-0.5.0.jar`가 있습니다.
-6. 기존 Minecraft 26.2 Fabric Essential 프로필의 `mods` 폴더에 그 JAR을 넣습니다. Fabric API도 그대로 유지합니다.
+- key: villager UUID
+- value: dimension + claimed chiseled quartz block position
+- one workstation is claimed by at most one miner
+- a valid claim keeps the villager employed without re-running profession assignment
+- breaking the claimed chiseled quartz block removes the contract, clears `[광부]`, and returns the registered miner profession to NONE
+- market interaction and transaction validation use the same persisted contract
 
-## 빌드가 실패하면
+The registered `central_economy:miner` profession is still assigned once on hire, but the economy no longer breaks if vanilla later rewrites that internal holder.
 
-실패한 Actions 실행 맨 아래 `Artifacts`에서 **central-economy-miner-build-log**를 다운로드하세요.
-그 ZIP 안의 `build-output.log`를 ChatGPT에 올리면 실제 Minecraft/Fabric 26.2 컴파일 오류를 기준으로 수정할 수 있습니다.
+## Expected gameplay
 
-## 중요
+1. Place a **Chiseled Quartz Block** near an adult unemployed villager.
+2. Within about one second, the villager receives a visible gold `[광부]` badge.
+3. Right-click the miner.
+4. The **광부 중앙시장** screen opens.
+5. Selling uses player UUID + commodity + planning cycle A/B procurement quotas.
+6. Buying uses server-wide shared retail stock.
+7. Break that miner's claimed Chiseled Quartz Block.
+8. Within about one second, `[광부]` disappears and the villager becomes unemployed again.
 
-이 소스는 경제 코어 설계를 포함하지만, **GitHub Actions의 실제 Fabric Loom 컴파일이 성공하기 전까지 설치 가능한 JAR로 검증되었다고 간주하지 않습니다.**
+## Economic scope
+
+State procurement (10): coal, raw copper, copper ingot, raw iron, iron ingot, redstone, lapis lazuli, raw gold, gold ingot, diamond.
+
+State retail (7): coal, copper ingot, iron ingot, redstone, lapis lazuli, gold ingot, diamond. Raw ores are not retailed.
+
+The planning cycle is 7 Minecraft days. Prices, lot sizes, quotas, retail stock, activation probability and gates are loaded from `miner_plan.json`.
+
+## Diagnostics
+
+`latest.log` now contains staged markers:
+
+- `[CE-EMPLOY] hired ...`
+- `[CE-MARKET] interact ... activeMiner=true`
+- `[CE-MARKET] open request ...`
+- `[CE-MARKET] snapshot built ...`
+- `[CE-MARKET] snapshot sent ...`
+- `[CE-MARKET] client received snapshot ...`
+- `[CE-MARKET] client opened miner market screen ...`
+- `[CE-TRADE] BUY/SELL ...`
+- `[CE-EMPLOY] miner ... became unemployed: workstation removed`
+
+This makes a failed interaction localizable from one log file.
+
+## Build
+
+Push the project to GitHub. `Build Miner Mod` runs automatically and performs:
+
+1. Java 25 setup
+2. source/economy invariant validation
+3. pure central-economy core self-test
+4. actual Fabric 26.2 Loom/Gradle build
+5. installable JAR artifact creation
+
+On success download artifact `central-economy-miner-jar` and put `central-economy-miner-0.6.0.jar` in the same mods directory as Fabric API and Essential.
+
+## Test checklist
+
+- [ ] Mod loads on Minecraft 26.2 Fabric + Essential
+- [ ] Adult unemployed villager claims one chiseled quartz workstation
+- [ ] `[광부]` appears once; `latest.log` does not spam re-hiring every second
+- [ ] Second villager cannot claim the same workstation
+- [ ] Right-click logs `activeMiner=true`
+- [ ] Market snapshot is sent and client screen opens
+- [ ] A quota transitions to B where applicable
+- [ ] A/B quota is shared across all miner NPCs for the same player
+- [ ] Retail stock is shared across all miner NPCs
+- [ ] Restart preserves quotas, stock and workstation claims
+- [ ] Breaking the claimed workstation clears `[광부]` and returns villager to unemployed

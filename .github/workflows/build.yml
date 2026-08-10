@@ -34,6 +34,18 @@ jobs:
           java -version 2>&1 | tee environment.log
           gradle --version 2>&1 | tee -a environment.log
 
+      - name: Validate source and economy invariants
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 tools/validate_project.py 2>&1 | tee validation-output.log
+
+      - name: Run pure economy core self-test
+        shell: bash
+        run: |
+          set -o pipefail
+          bash tools/run_core_self_test.sh 2>&1 | tee core-self-test.log
+
       - name: Build Fabric mod
         id: gradle_build
         shell: bash
@@ -52,9 +64,9 @@ jobs:
             echo "No installable JAR found in build/libs" | tee -a build-output.log
             exit 1
           fi
-          cp "$JAR" dist/central-economy-miner-0.5.3.jar
+          cp "$JAR" dist/central-economy-miner-0.6.0.jar
           echo "Installable JAR: $JAR" | tee -a build-output.log
-          sha256sum dist/central-economy-miner-0.5.3.jar | tee dist/SHA256.txt
+          sha256sum dist/central-economy-miner-0.6.0.jar | tee dist/SHA256.txt
 
       - name: Upload installable JAR
         if: success()
@@ -65,7 +77,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload build logs
+      - name: Upload build and validation logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -73,5 +85,7 @@ jobs:
           path: |
             build-output.log
             environment.log
+            validation-output.log
+            core-self-test.log
           if-no-files-found: warn
           retention-days: 14
