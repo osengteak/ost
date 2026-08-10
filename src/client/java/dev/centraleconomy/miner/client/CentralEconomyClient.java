@@ -17,8 +17,8 @@ public final class CentralEconomyClient implements ClientModInitializer {
                 context.client().execute(() -> {
                     MinerMarketView view = MinerMarketView.parse(payload.json());
                     Minecraft mc = Minecraft.getInstance();
-                    if (mc.screen instanceof MinerMarketScreen screen) screen.update(view);
-                    else mc.setScreen(new MinerMarketScreen(view));
+                    if (mc.gui.screen() instanceof MinerMarketScreen screen) screen.update(view);
+                    else mc.gui.setScreen(new MinerMarketScreen(view));
                 }));
 
         UseEntityCallback.EVENT.register((player, level, hand, entity, hitResult) -> {
