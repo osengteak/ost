@@ -3,6 +3,7 @@ package dev.centraleconomy.miner;
 import dev.centraleconomy.miner.command.CentralEconomyCommands;
 import dev.centraleconomy.miner.market.MinerMarketRuntime;
 import dev.centraleconomy.miner.net.MinerMarketNetworking;
+import dev.centraleconomy.miner.villager.MinerInteractionService;
 import dev.centraleconomy.miner.villager.MinerEmploymentService;
 import dev.centraleconomy.miner.villager.ModPoiTypes;
 import dev.centraleconomy.miner.villager.ModVillagerProfessions;
@@ -26,8 +27,9 @@ public final class CentralEconomyMod implements ModInitializer {
         ModVillagerProfessions.initialize();
         MinerMarketRuntime.reload();
         MinerMarketNetworking.initialize();
+        MinerInteractionService.initialize();
         MinerEmploymentService.initialize();
         CentralEconomyCommands.initialize();
-        LOGGER.info("Central Economy Miner GitHub build source 0.5 initialized");
+        LOGGER.info("Central Economy Miner GitHub build source 0.5.3 initialized");
     }
 }
