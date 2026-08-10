@@ -1,41 +1,80 @@
-# Central Economy
+# Central Economy v1.0.2
 
-Minecraft Java Edition 26.2 / Fabric economy-expansion mod.
+Minecraft Java 26.2 / Fabric central-planning villager economy mod.
 
-This project generalizes the proven miner vertical slice into one shared central-market engine for ten workstation professions plus the vanilla Wandering Trader miscellaneous market.
+## v1.0.2 hotfix scope
+
+This revision keeps the 1.0.1 economy, workstations, textures and market UI, and fixes two runtime defects found during live testing:
+
+1. **Large market snapshot disconnect**
+   - v1.0.1 serialized an entire market into one JSON String custom payload.
+   - Large catalogs such as Librarian and Cleric could fail during packet encoding and disconnect the player.
+   - v1.0.2 splits a snapshot into bounded frames (`4096` chars, hard UTF-8 frame ceiling `16384` bytes), sends them in order, and reassembles them client-side before parsing the JSON.
+   - Each transfer has a unique id, part index/count validation, duplicate-conflict rejection, a total snapshot size limit, and stale-transfer cleanup.
+
+2. **Dead villager ghost workstation claim**
+   - v1.0.1 only reconciled claims for villagers found in the nearby scan. A dead villager therefore vanished from the scan while its persisted workstation claim remained.
+   - v1.0.2 listens for server-side villager death and immediately removes the UUID -> workstation contract.
+   - Mob conversion also releases the old villager contract.
+   - Ordinary chunk/entity unload does **not** release employment.
+   - Saved market-state schema is bumped to 2. On first load from a pre-fix save, legacy workstation claims are discarded once so already-created ghost claims cannot survive the upgrade. Living Central Economy villagers reattach to a nearby matching free workstation on the next employment scan.
 
 ## Markets
 
-- Farmer — crops and food
-- Rancher — meat, leather, eggs and bone
-- Fisher — live fish buckets, axolotl bucket and cooked fish
-- Miner — processed/use-ready minerals and metal ingots
-- Lumberjack — logs and stems
-- Mason — brick/stone-brick building materials
-- Fletcher — arrows and tipped arrows
-- Librarian — configured enchanted-book variants
-- Cleric — configured potions and brewing ingredients
-- Cartographer — paper, string, book-and-quill and maps
-- Wandering Trader — miscellaneous goods outside the other categories
+The full build retains 10 custom workstation professions plus the vanilla Wandering Trader miscellaneous market:
 
-## Employment model
+- Farmer
+- Rancher
+- Fisher
+- Miner
+- Lumberjack
+- Mason
+- Fletcher
+- Librarian
+- Cleric
+- Cartographer
+- Wandering Trader market (no workstation block)
 
-The ten normal professions use custom Central Economy workstation blocks. A workstation can be claimed by only one villager. The persisted workstation claim is the authoritative employment state; breaking or replacing the claimed workstation releases the claim and returns the mod-employed villager to unemployed state.
+The market engine retains per-player A/B procurement quota, shared retail stock, the 7-Minecraft-day planning cycle, search/favorites/vertical scrolling, server-authoritative buy/sell validation, persistence, special enchanted-book/potion/tipped-arrow construction, and the existing profession workstation textures.
 
-The Wandering Trader has no workstation. In v1.0.1 it is detected by the stable entity registry id `minecraft:wandering_trader`, avoiding dependence on a concrete Minecraft NPC class package.
+## v1.0.2 diagnostics
 
-## Economy model
+A large market open should now produce a sequence similar to:
 
-- 7 Minecraft-day planning cycle
-- per-player procurement quota: player UUID × market × commodity × cycle
-- A livelihood procurement tier followed by lower industrial B tier
-- shared server retail stock per market/commodity
-- server-authoritative inventory and emerald transactions
-- external economy JSON plan
-- responsive searchable/favorite-aware market screen with vertical scrolling
+```text
+[CE-MARKET] snapshot built ... chars=... utf8Bytes=... parts=...
+[CE-MARKET] snapshot sent ... parts=...
+[CE-MARKET] client reassembled snapshot parts=... chars=...
+[CE-MARKET] client opened market=...
+```
+
+Killing an employed villager should produce:
+
+```text
+[CE-EMPLOY] released <market> workstation claim for <uuid>: villager died
+```
+
+A new unemployed villager near the now-free workstation should then be able to take that profession on the next employment scan.
 
 ## Build
 
-Push the source to the existing GitHub repository. GitHub Actions runs project validation, pure self-tests, and then a real Fabric/Loom `clean build` using Java 25 and Gradle 9.5.1. On success, download the `central-economy-jar` artifact and install only the produced `central-economy-1.0.1.jar` alongside Fabric API.
+GitHub Actions runs:
 
-v1.0.1 specifically fixes the four v1.0.0 compile errors caused by the obsolete/relocated `WanderingTrader` Java class reference. A green GitHub Actions build is still required before runtime success is claimed.
+1. `python3 tools/validate_project.py`
+2. `bash tools/run_core_self_test.sh`
+3. real Minecraft 26.2 Fabric/Loom `gradle clean build`
+4. packaging of `central-economy-1.0.2.jar`
+
+The artifact is named `central-economy-jar`.
+
+## Runtime acceptance test
+
+After installing only the new Central Economy JAR (remove older Central Economy JARs):
+
+1. Open a large catalog market, preferably Librarian or Cleric. It must open without disconnecting.
+2. Perform one buy and one sell where available and verify inventory/emerald/quota/stock refresh.
+3. Employ a villager with a workstation, kill that villager, then place/spawn another unemployed villager near the same workstation. The new villager must be able to claim it.
+4. Break an assigned workstation and verify the living villager returns to unemployed.
+5. Re-enter the world and verify state persists.
+
+Local pure-Java/static validation is included, but a green GitHub Actions build and this live test are still the final Minecraft-linked gates.

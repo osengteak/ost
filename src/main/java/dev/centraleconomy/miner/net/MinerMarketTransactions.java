@@ -20,6 +20,9 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+
+import java.nio.charset.StandardCharsets;
+import java.util.List;
 import net.minecraft.world.item.Items;
 
 /** Server-authoritative adapter between inventories and every profession market. */
@@ -138,11 +141,15 @@ public final class MinerMarketTransactions {
 
             String json = MinerMarketSnapshot.create(endpoint.entity().getId(), endpoint.marketId(), player, engine, saved.state(), cycle, message);
             int rows = engine.requireMarket(endpoint.marketId()).commodities().size();
-            CentralEconomyMod.LOGGER.info("[CE-MARKET] snapshot built player={} market={} rows={} bytes={}",
-                    player.getGameProfile().name(), endpoint.marketId(), rows, json.length());
-            ServerPlayNetworking.send(player, new MinerMarketSnapshotS2CPayload(json));
-            CentralEconomyMod.LOGGER.info("[CE-MARKET] snapshot sent player={} market={} entity={}",
-                    player.getGameProfile().name(), endpoint.marketId(), endpoint.entity().getUUID());
+            int utf8Bytes = json.getBytes(StandardCharsets.UTF_8).length;
+            List<String> frames = MarketSnapshotFraming.frame(json);
+            CentralEconomyMod.LOGGER.info("[CE-MARKET] snapshot built player={} market={} rows={} chars={} utf8Bytes={} parts={}",
+                    player.getGameProfile().name(), endpoint.marketId(), rows, json.length(), utf8Bytes, frames.size());
+            for (String frame : frames) {
+                ServerPlayNetworking.send(player, new MinerMarketSnapshotS2CPayload(frame));
+            }
+            CentralEconomyMod.LOGGER.info("[CE-MARKET] snapshot sent player={} market={} entity={} parts={}",
+                    player.getGameProfile().name(), endpoint.marketId(), endpoint.entity().getUUID(), frames.size());
         } catch (RuntimeException e) {
             CentralEconomyMod.LOGGER.error("[CE-MARKET] failed to build/send market snapshot to {}", player.getGameProfile().name(), e);
             player.sendSystemMessage(Component.literal("[Central Economy] 시장 화면 전송 중 오류가 발생했습니다. latest.log를 확인하세요."), true);

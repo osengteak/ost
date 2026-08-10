@@ -18,6 +18,7 @@ import java.util.UUID;
 
 /** One overworld-scoped authoritative ledger for all Central Economy markets. */
 public final class MarketSavedData extends SavedData {
+    private static final int CURRENT_SCHEMA = 2;
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     private final MarketMutableState state;
 
@@ -41,6 +42,7 @@ public final class MarketSavedData extends SavedData {
 
     private String toJson() {
         JsonObject root = new JsonObject();
+        root.addProperty("schema", CURRENT_SCHEMA);
         root.addProperty("cycle", state.initializedCycle());
         root.addProperty("turnover_e", state.cumulativeTurnoverEmeralds());
 
@@ -85,8 +87,10 @@ public final class MarketSavedData extends SavedData {
     private static MarketSavedData fromJson(String json) {
         MarketMutableState state = new MarketMutableState();
         if (json == null || json.isBlank()) return new MarketSavedData(state);
+        boolean migratedClaims = false;
         try {
             JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+            int schema = root.has("schema") ? root.get("schema").getAsInt() : 1;
             if (root.has("cycle")) state.initializedCycle(root.get("cycle").getAsLong());
             if (root.has("turnover_e")) state.cumulativeTurnoverEmeralds(root.get("turnover_e").getAsLong());
             if (root.has("stock")) {
@@ -105,16 +109,27 @@ public final class MarketSavedData extends SavedData {
                         q.get("commodity").getAsString(), q.get("cycle").getAsLong());
                 state.quotaUsage().put(key, new QuotaUsage(q.get("a").getAsInt(), q.get("b").getAsInt()));
             });
-            if (root.has("workstation_claims")) root.getAsJsonArray("workstation_claims").forEach(v -> {
-                JsonObject c = v.getAsJsonObject();
-                String market = c.has("market") ? c.get("market").getAsString() : "miner";
-                state.workstationClaims().put(UUID.fromString(c.get("villager").getAsString()),
-                        new WorkstationClaim(market, c.get("dimension").getAsString(), c.get("pos").getAsLong()));
-            });
+
+            // v1.0.0/1.0.1 could leave a dead villager's workstation claim forever.
+            // Do not trust legacy claims once. Valid living Central Economy villagers will reattach to a matching
+            // free workstation on the next employment scan, while ghost claims disappear immediately.
+            if (root.has("workstation_claims") && schema >= CURRENT_SCHEMA) {
+                root.getAsJsonArray("workstation_claims").forEach(v -> {
+                    JsonObject c = v.getAsJsonObject();
+                    String market = c.has("market") ? c.get("market").getAsString() : "miner";
+                    state.workstationClaims().put(UUID.fromString(c.get("villager").getAsString()),
+                            new WorkstationClaim(market, c.get("dimension").getAsString(), c.get("pos").getAsLong()));
+                });
+            } else if (root.has("workstation_claims") && !root.getAsJsonArray("workstation_claims").isEmpty()) {
+                migratedClaims = true;
+                CentralEconomyMod.LOGGER.warn("[CE-MIGRATE] discarded legacy workstation claims from schema {} to repair possible ghost occupations", schema);
+            }
         } catch (RuntimeException e) {
             CentralEconomyMod.LOGGER.error("Invalid persisted market_state; starting safe empty state", e);
             return new MarketSavedData(new MarketMutableState());
         }
-        return new MarketSavedData(state);
+        MarketSavedData data = new MarketSavedData(state);
+        if (migratedClaims) data.touch();
+        return data;
     }
 }

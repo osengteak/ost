@@ -22,9 +22,12 @@ javac -d "$OUT" \
   "$ROOT/src/main/java/dev/centraleconomy/miner/plan/RetailPlan.java" \
   "$ROOT/src/main/java/dev/centraleconomy/miner/plan/TierPlan.java" \
   "$ROOT/src/main/java/dev/centraleconomy/miner/net/MinerTradeRequest.java" \
+  "$ROOT/src/main/java/dev/centraleconomy/miner/net/MarketSnapshotFraming.java" \
   "$ROOT/src/client/java/dev/centraleconomy/miner/client/MinerMarketLayout.java" \
   "$ROOT/tools/CoreSelfTest.java" \
-  "$ROOT/tools/UiAndRequestSelfTest.java"
+  "$ROOT/tools/UiAndRequestSelfTest.java" \
+  "$ROOT/tools/SnapshotFramingSelfTest.java"
 
 java -cp "$OUT" CoreSelfTest
 java -cp "$OUT" UiAndRequestSelfTest
+java -cp "$OUT" SnapshotFramingSelfTest

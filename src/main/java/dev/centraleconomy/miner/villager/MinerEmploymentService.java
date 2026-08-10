@@ -4,6 +4,7 @@ import dev.centraleconomy.miner.CentralEconomyMod;
 import dev.centraleconomy.miner.block.ModBlocks;
 import dev.centraleconomy.miner.market.MarketSavedData;
 import dev.centraleconomy.miner.market.WorkstationClaim;
+import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
@@ -32,6 +33,21 @@ public final class MinerEmploymentService {
 
     public static void initialize() {
         ServerTickEvents.END_LEVEL_TICK.register(MinerEmploymentService::tick);
+
+        // Critical lifecycle invariant: a dead villager must release its 1:1 workstation contract immediately.
+        // Chunk unload is intentionally NOT treated as death; unloaded living villagers retain their employment.
+        ServerLivingEntityEvents.AFTER_DEATH.register((entity, damageSource) -> {
+            if (entity instanceof Villager villager && entity.level() instanceof ServerLevel level) {
+                releaseClaimForGoneVillager(level, villager, "villager died");
+            }
+        });
+
+        // Villager -> zombie-villager and other entity-type conversions also replace the original entity instance.
+        ServerLivingEntityEvents.MOB_CONVERSION.register((previous, converted, keepEquipment) -> {
+            if (previous instanceof Villager villager && previous.level() instanceof ServerLevel level) {
+                releaseClaimForGoneVillager(level, villager, "villager converted");
+            }
+        });
     }
 
     /** Returns the authoritative market id for this employed villager, or null. */
@@ -117,7 +133,7 @@ public final class MinerEmploymentService {
             WorkstationClaim claim = entry.getValue();
             if (!claim.dimensionId().equals(dimension)) continue;
             Villager villager = nearby.get(entry.getKey());
-            if (villager == null) continue;
+            if (villager == null) continue; // unloaded living villagers keep their claim; death/conversion events release it.
 
             if (!hasValidClaim(level, claim)) {
                 iterator.remove();
@@ -144,6 +160,16 @@ public final class MinerEmploymentService {
             MinerVisualIdentity.ensureBadge(villager, claim.marketId());
         }
         return dirty;
+    }
+
+    private static void releaseClaimForGoneVillager(ServerLevel level, Villager villager, String reason) {
+        if (level.getServer() == null) return;
+        MarketSavedData saved = MarketSavedData.get(level.getServer());
+        WorkstationClaim removed = saved.state().workstationClaims().remove(villager.getUUID());
+        if (removed == null) return;
+        saved.touch();
+        CentralEconomyMod.LOGGER.info("[CE-EMPLOY] released {} workstation claim for {}: {}",
+                removed.marketId(), villager.getUUID(), reason);
     }
 
     private static void releaseVillager(ServerLevel level, Villager villager, String marketId, String reason) {

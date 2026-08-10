@@ -45,15 +45,15 @@ mod = text("src/main/java/dev/centraleconomy/miner/CentralEconomyMod.java")
 require("minecraft_version=26.2" in props, "targets Minecraft 26.2")
 require("loader_version=0.19.3" in props, "targets Fabric Loader 0.19.3")
 require("fabric_api_version=0.156.0+26.2" in props, "targets Fabric API 0.156.0+26.2")
-require("mod_version=1.0.1" in props, "project version is 1.0.1")
+require("mod_version=1.0.2" in props, "project version is 1.0.2")
 require("archives_base_name=central-economy" in props, "archive base name is central-economy")
 require("rootProject.name = 'central-economy'" in settings, "Gradle project uses final Central Economy name")
 require(mod_json["id"] == "central_economy" and mod_json["name"] == "Central Economy", "Fabric metadata uses final mod identity")
-require("Central Economy 1.0.1 initialized" in mod, "runtime logs final 1.0.1 initialization")
+require("Central Economy 1.0.2 initialized" in mod, "runtime logs final 1.0.2 initialization")
 require("Validate full project and economy invariants" in workflow, "CI runs full project validation")
 require("Run pure economy UI and request self-tests" in workflow, "CI runs pure self-tests")
 require("gradle --no-daemon --stacktrace clean build" in workflow, "CI performs real Fabric/Loom build")
-require("central-economy-1.0.1.jar" in workflow and "central-economy-jar" in workflow, "CI publishes patched 1.0.1 artifact")
+require("central-economy-1.0.2.jar" in workflow and "central-economy-jar" in workflow, "CI publishes patched 1.0.2 artifact")
 
 # ---------- server architecture ----------
 interaction = text("src/main/java/dev/centraleconomy/miner/villager/MinerInteractionService.java")
@@ -70,6 +70,9 @@ block_ids = text("src/main/java/dev/centraleconomy/miner/block/ModBlockItemIds.j
 pois = text("src/main/java/dev/centraleconomy/miner/villager/ModPoiTypes.java")
 professions = text("src/main/java/dev/centraleconomy/miner/villager/ModVillagerProfessions.java")
 visual = text("src/main/java/dev/centraleconomy/miner/villager/MinerVisualIdentity.java")
+framing = text("src/main/java/dev/centraleconomy/miner/net/MarketSnapshotFraming.java")
+payload = text("src/main/java/dev/centraleconomy/miner/net/MinerMarketSnapshotS2CPayload.java")
+client = text("src/client/java/dev/centraleconomy/miner/client/CentralEconomyClient.java")
 
 for init in [
     "ModBlocks.initialize();", "ModPoiTypes.initialize();", "ModVillagerProfessions.initialize();",
@@ -88,6 +91,14 @@ require("workstation removed or changed" in employment and "VillagerProfession.N
 require("MinerVisualIdentity.clearIfOurs" in employment, "unemployment removes mod-owned profession badge")
 require("claimedPositions" in employment and "claimed.contains(pos.asLong())" in employment,
         "one workstation position cannot be claimed by two villagers")
+require("ServerLivingEntityEvents.AFTER_DEATH.register" in employment and "releaseClaimForGoneVillager" in employment,
+        "villager death immediately releases its workstation contract")
+require("ServerLivingEntityEvents.MOB_CONVERSION.register" in employment,
+        "villager entity-type conversion also releases its workstation contract")
+require("ENTITY_UNLOAD" not in employment,
+        "ordinary chunk/entity unload is not mistaken for death")
+require("CURRENT_SCHEMA = 2" in saved and "discarded legacy workstation claims" in saved,
+        "v1.0.2 one-time saved-data migration clears pre-fix ghost workstation claims")
 require("activeMarket" in interaction and "minecraft:wandering_trader" in interaction,
         "interaction supports all employed villagers plus Wandering Trader by registry id")
 require("net.minecraft.world.entity.npc.WanderingTrader" not in interaction and
@@ -107,6 +118,17 @@ require("player.getInventory().setChanged();" in transactions,
 require("SELL committed" in transactions and "BUY committed" in transactions,
         "successful trades produce diagnostic commit logs")
 require("ServerPlayNetworking.send" in transactions, "server sends authoritative refreshed snapshots")
+require("MarketSnapshotFraming.frame(json)" in transactions and "for (String frame : frames)" in transactions,
+        "large market snapshots are split before server networking")
+require("new MinerMarketSnapshotS2CPayload(json)" not in transactions,
+        "server never sends an entire market JSON as one String payload")
+require("MAX_CHUNK_CHARS = 4096" in framing and "MAX_TOTAL_CHARS = 1_000_000" in framing and
+        "MAX_FRAME_UTF8_BYTES = 16_384" in framing,
+        "snapshot framing has explicit per-packet UTF-8 and total memory bounds")
+require("payload.frame()" in client and "SNAPSHOT_ASSEMBLER.accept" in client,
+        "client reassembles bounded snapshot frames before parsing JSON")
+require("String frame" in payload and "ByteBufCodecs.STRING_UTF8" in payload,
+        "wire payload contains only one bounded frame String")
 require("MarketKeys.stock(marketId, commodityId)" in engine,
         "global retail stock is market-qualified")
 require("new QuotaKey(player, marketId, commodityId, cycleId)" in engine,
@@ -307,8 +329,8 @@ require("ClientPlayNetworking.canSend(ExecuteMinerTradeC2SPayload.TYPE)" in scre
         "client checks trade payload availability before sending")
 require("[CE-TRADE] client sending" in screen and "[CE-TRADE] server received" in networking,
         "trade request path has client/server diagnostics")
-require("[CE-MARKET] client received snapshot" in client, "client logs authoritative market snapshot reception")
+require("[CE-MARKET] client reassembled snapshot" in client, "client logs authoritative market snapshot reassembly")
 require('split("\\\\|", 3)' in request or 'split("\\|", 3)' in request, "trade transport parser uses exactly three fields")
 require("commodityId.indexOf('|')" in request, "trade request rejects delimiter injection")
 
-print("PASS: full Central Economy 1.0.1 project validation complete")
+print("PASS: full Central Economy 1.0.2 project validation complete")

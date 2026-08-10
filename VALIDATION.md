@@ -1,37 +1,42 @@
-# Validation report — Central Economy v1.0.1
+# Validation report - Central Economy v1.0.2
 
-## Automated checks included
+## Added regression coverage
 
-`tools/validate_project.py` checks the final multi-market project, including:
+`tools/validate_project.py` now checks that:
 
-- Minecraft 26.2 / Fabric Loader 0.19.3 / Fabric API 0.156.0+26.2 metadata;
-- ten custom profession workstation blocks and their blockstate/model/item/recipe/loot resources;
-- exact 16×16 workstation textures;
-- persistent 1:1 workstation employment contracts and break-to-unemployed path;
-- server-authoritative market interaction and proximity checks;
-- Wandering Trader detection by `minecraft:wandering_trader` registry id without a concrete NPC class import;
-- per-player A/B quota keys qualified by market, commodity and planning cycle;
-- shared market retail stock and cycle reset;
-- server stack construction paths for normal items, enchanted books, potions and tipped arrows;
-- all configured market catalogs and special-product variant counts;
-- no raw copper/iron/gold in the miner market;
-- direct same-item buy→sell arbitrage checks across markets;
-- responsive market layout, vertical wheel scrolling and trade-network diagnostics.
+- the project and uploaded artifact target v1.0.2;
+- employment registers the Fabric server living-entity death event;
+- death removes the persisted workstation claim;
+- mob conversion also removes the old villager claim;
+- ordinary entity unload is not used as an employment-release signal;
+- saved market state uses schema 2 and contains the legacy ghost-claim recovery path;
+- the server does not send `new MinerMarketSnapshotS2CPayload(json)` with the whole catalog;
+- snapshots pass through `MarketSnapshotFraming.frame(json)`;
+- framing has explicit chunk, UTF-8 packet and total-assembly bounds;
+- the client uses the snapshot assembler before parsing market JSON.
 
-`tools/run_core_self_test.sh` compiles and executes Minecraft-independent Java tests for the economy engine, responsive UI math, and generic trade-request serialization/validation.
+`tools/SnapshotFramingSelfTest.java` executes pure Java regression tests for:
 
-## Local result for this package
+- one-frame small snapshots;
+- a large synthetic Korean catalog split across many frames;
+- every wire frame staying under the explicit UTF-8 ceiling;
+- exact reassembly after reversed/out-of-order delivery;
+- cleanup after completion;
+- malformed-frame rejection;
+- conflicting duplicate-frame rejection;
+- oversized total snapshot rejection.
+
+The existing core tests still cover A/B procurement transition, player quota isolation, market-qualified shared stock, retail decrement, deterministic rolls, 7-day reset, responsive layout bounds, vertical scrolling, and trade-request validation.
+
+## Local result
 
 ```text
-PASS: full Central Economy 1.0.1 project validation complete
+PASS: full Central Economy 1.0.2 project validation complete
 PASS: full central economy engine invariants
 PASS: responsive UI and generic trade request invariants
+PASS: chunked market snapshot framing invariants
 ```
 
-## Compile issue fixed from v1.0.0
+## External hard gate
 
-The first v1.0.0 GitHub Actions run failed with four `cannot find symbol` errors because production source imported and type-checked `net.minecraft.world.entity.npc.WanderingTrader`. v1.0.1 removes that Java-class dependency entirely. Both the interaction hook and transaction endpoint resolver now inspect the entity registry identity and accept only `minecraft:wandering_trader`.
-
-## Not claimed yet
-
-This environment cannot perform the real Fabric/Loom-linked Minecraft compile. The next hard gate is a green GitHub Actions `clean build`. After that, live Minecraft testing is still required for all profession workstations and special-product trades.
+The local container does not have network access or a Minecraft 26.2/Fabric dependency cache, so it cannot perform the Loom compilation here. The included GitHub Actions workflow remains the real Minecraft-linked compile gate.
