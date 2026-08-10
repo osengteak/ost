@@ -35,7 +35,7 @@ public final class MinerMarketTransactions {
             return;
         }
 
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = ((ServerLevel) player.level()).getServer();
         MarketSavedData saved = MarketSavedData.get(server);
         MinerMarketEngine engine = MinerMarketRuntime.engine();
         ServerLevel overworld = server.getLevel(ServerLevel.OVERWORLD);
@@ -80,7 +80,7 @@ public final class MinerMarketTransactions {
     }
 
     public static void sendSnapshot(ServerPlayer player, Villager villager, String message) {
-        MinecraftServer server = player.getServer();
+        MinecraftServer server = ((ServerLevel) player.level()).getServer();
         MarketSavedData saved = MarketSavedData.get(server);
         MinerMarketEngine engine = MinerMarketRuntime.engine();
         ServerLevel overworld = server.getLevel(ServerLevel.OVERWORLD);
