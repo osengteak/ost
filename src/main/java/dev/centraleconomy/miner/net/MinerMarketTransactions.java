@@ -1,7 +1,6 @@
 package dev.centraleconomy.miner.net;
 
 import dev.centraleconomy.miner.CentralEconomyMod;
-import dev.centraleconomy.miner.market.MarketKeys;
 import dev.centraleconomy.miner.market.MarketSavedData;
 import dev.centraleconomy.miner.market.MinerMarketEngine;
 import dev.centraleconomy.miner.market.MinerMarketRuntime;
@@ -11,8 +10,8 @@ import dev.centraleconomy.miner.plan.CommodityPlan;
 import dev.centraleconomy.miner.plan.MarketPlan;
 import dev.centraleconomy.miner.villager.MinerEmploymentService;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.network.chat.Component;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -20,10 +19,10 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import net.minecraft.world.item.Items;
 
 /** Server-authoritative adapter between inventories and every profession market. */
 public final class MinerMarketTransactions {
@@ -34,7 +33,8 @@ public final class MinerMarketTransactions {
         CentralEconomyMod.LOGGER.info("[CE-MARKET] open request player={} entityId={}", player.getGameProfile().name(), entityId);
         Endpoint endpoint = validatedEndpoint(player, entityId);
         if (endpoint == null) {
-            CentralEconomyMod.LOGGER.warn("[CE-MARKET] open rejected player={} entityId={} reason=invalid_endpoint", player.getGameProfile().name(), entityId);
+            CentralEconomyMod.LOGGER.warn("[CE-MARKET] open rejected player={} entityId={} reason=invalid_endpoint",
+                    player.getGameProfile().name(), entityId);
             return;
         }
         MarketPlan market = MinerMarketRuntime.engine().requireMarket(endpoint.marketId());
@@ -45,29 +45,26 @@ public final class MinerMarketTransactions {
     public static void execute(ServerPlayer player, MinerTradeRequest request) {
         CentralEconomyMod.LOGGER.info("[CE-TRADE] execute start player={} entityId={} direction={} commodity={}",
                 player.getGameProfile().name(), request.entityId(), request.direction(), request.commodityId());
-
         Endpoint endpoint = validatedEndpoint(player, request.entityId());
         if (endpoint == null) {
             player.sendSystemMessage(Component.literal("[Central Economy] 시장 담당자와 너무 멀거나 더 이상 유효한 담당자가 아닙니다."), true);
             return;
         }
-
         MinecraftServer server = ((ServerLevel) player.level()).getServer();
         MarketSavedData saved = MarketSavedData.get(server);
         MinerMarketEngine engine = MinerMarketRuntime.engine();
         ServerLevel overworld = server.getLevel(ServerLevel.OVERWORLD);
         long cycle = engine.cycleId(overworld == null ? 0L : overworld.getGameTime());
         engine.ensureCycle(saved.state(), cycle);
-
         CommodityPlan cp;
         try {
             cp = engine.requireCommodity(endpoint.marketId(), request.commodityId());
         } catch (IllegalArgumentException e) {
-            CentralEconomyMod.LOGGER.warn("[CE-TRADE] rejected cross/unknown commodity market={} commodity={}", endpoint.marketId(), request.commodityId());
+            CentralEconomyMod.LOGGER.warn("[CE-TRADE] rejected cross/unknown/disabled commodity market={} commodity={}",
+                    endpoint.marketId(), request.commodityId());
             sendSnapshot(player, endpoint, "이 시장의 거래 대상이 아닌 품목입니다.");
             return;
         }
-
         String message = request.direction() == MinerTradeRequest.Direction.SELL
                 ? executeSell(player, saved, engine, cycle, endpoint.marketId(), cp)
                 : executeBuy(player, saved, engine, endpoint.marketId(), cp);
@@ -80,12 +77,21 @@ public final class MinerMarketTransactions {
                                       long cycle, String marketId, CommodityPlan cp) {
         if (!cp.hasProcurement()) return "국가 매입 대상이 아닙니다.";
         if (!cp.isPlainItem()) return "구성요소가 있는 특수 품목은 현재 국가 매입 대상이 아닙니다.";
-
         Item commodity = MarketStackFactory.resolvePlainItem(cp.itemId());
         if (commodity == Items.AIR) return "등록되지 않은 품목입니다: " + cp.itemId();
-        ProcurementQuote q = engine.quoteProcurement(saved.state(), player.getUUID(), marketId, cp.commodityId(), cycle);
-        if (!q.open()) return "이 품목의 이번 계획주기 매입 한도가 끝났습니다.";
 
+        Item containerReturn = Items.AIR;
+        if (cp.returnsProcurementContainer()) {
+            containerReturn = MarketStackFactory.resolvePlainItem(cp.procurementContainerReturn());
+            if (containerReturn == Items.AIR) {
+                CentralEconomyMod.LOGGER.error("[CE-TRADE] invalid procurement container return market={} commodity={} return={}",
+                        marketId, cp.commodityId(), cp.procurementContainerReturn());
+                return "거래 컨테이너 설정이 잘못되었습니다. latest.log를 확인하세요.";
+            }
+        }
+
+        ProcurementQuote q = engine.quoteProcurement(saved.state(), player.getUUID(), marketId, cp.commodityId(), cycle);
+        if (!q.open()) return "이 직업/품목의 이번 계획주기 매입 한도가 끝났습니다.";
         int available = count(player, commodity);
         if (available < q.itemCount()) {
             CentralEconomyMod.LOGGER.info("[CE-TRADE] SELL denied player={} market={} commodity={} have={} need={}",
@@ -96,8 +102,12 @@ public final class MinerMarketTransactions {
         removeExactly(player, commodity, q.itemCount());
         engine.consumeProcurement(saved.state(), player.getUUID(), marketId, cp.commodityId(), cycle);
         giveOrDrop(player, new ItemStack(Items.EMERALD, q.emeralds()));
+        if (containerReturn != Items.AIR) {
+            giveOrDrop(player, new ItemStack(containerReturn, q.itemCount()));
+        }
         saved.touch();
-        CentralEconomyMod.LOGGER.info("[CE-TRADE] SELL committed player={} market={} commodity={} tier={} items={} emeralds={} cycle={}",
+        CentralEconomyMod.LOGGER.info(
+                "[CE-TRADE] SELL committed player={} market={} commodity={} tier={} items={} emeralds={} cycle={}",
                 player.getGameProfile().name(), marketId, cp.commodityId(), q.tier(), q.itemCount(), q.emeralds(), cycle);
         return "국가 매입 " + q.tier() + "단계: " + q.itemCount() + "개 → 에메랄드 " + q.emeralds() + "개";
     }
@@ -106,27 +116,26 @@ public final class MinerMarketTransactions {
                                      String marketId, CommodityPlan cp) {
         RetailQuote q = engine.quoteRetail(saved.state(), marketId, cp.commodityId());
         if (!q.available()) return retailReason(q.reason());
-
         final ItemStack product;
         try {
             product = MarketStackFactory.create(player, cp, q.itemCount());
         } catch (RuntimeException e) {
-            CentralEconomyMod.LOGGER.error("[CE-TRADE] cannot construct market stack market={} commodity={}", marketId, cp.commodityId(), e);
+            CentralEconomyMod.LOGGER.error("[CE-TRADE] cannot construct market stack market={} commodity={}",
+                    marketId, cp.commodityId(), e);
             return "상품 데이터를 생성하지 못했습니다. latest.log를 확인하세요.";
         }
-
         int emeralds = count(player, Items.EMERALD);
         if (emeralds < q.emeralds()) return "에메랄드가 부족합니다. " + q.emeralds() + "개가 필요합니다.";
 
         removeExactly(player, Items.EMERALD, q.emeralds());
-        engine.consumeRetail(saved.state(), marketId, cp.commodityId());
+        RetailQuote consumed = engine.consumeRetail(saved.state(), marketId, cp.commodityId());
         giveOrDrop(player, product);
         saved.touch();
-
-        CentralEconomyMod.LOGGER.info("[CE-TRADE] BUY committed player={} market={} commodity={} items={} emeralds={} remainingStock={}",
-                player.getGameProfile().name(), marketId, cp.commodityId(), q.itemCount(), q.emeralds(),
-                saved.state().retailStock().getOrDefault(MarketKeys.stock(marketId, cp.commodityId()), 0));
-        return "국가 판매: 에메랄드 " + q.emeralds() + "개 → " + q.itemCount() + "개";
+        CentralEconomyMod.LOGGER.info(
+                "[CE-TRADE] BUY committed player={} market={} commodity={} tier={} items={} emeralds={} remainingStock={}",
+                player.getGameProfile().name(), marketId, cp.commodityId(), consumed.tier(), q.itemCount(), q.emeralds(),
+                consumed.stockItems());
+        return "국가 판매 " + consumed.tier() + "단계: 에메랄드 " + q.emeralds() + "개 → " + q.itemCount() + "개";
     }
 
     private static void sendSnapshot(ServerPlayer player, Endpoint endpoint, String message) {
@@ -138,12 +147,14 @@ public final class MinerMarketTransactions {
             long cycle = engine.cycleId(overworld == null ? 0L : overworld.getGameTime());
             engine.ensureCycle(saved.state(), cycle);
             saved.touch();
-
-            String json = MinerMarketSnapshot.create(endpoint.entity().getId(), endpoint.marketId(), player, engine, saved.state(), cycle, message);
-            int rows = engine.requireMarket(endpoint.marketId()).commodities().size();
+            String json = MinerMarketSnapshot.create(
+                    endpoint.entity().getId(), endpoint.marketId(), player, engine, saved.state(), cycle, message);
+            long rows = engine.requireMarket(endpoint.marketId()).commodities().values().stream()
+                    .filter(CommodityPlan::enabled).count();
             int utf8Bytes = json.getBytes(StandardCharsets.UTF_8).length;
             List<String> frames = MarketSnapshotFraming.frame(json);
-            CentralEconomyMod.LOGGER.info("[CE-MARKET] snapshot built player={} market={} rows={} chars={} utf8Bytes={} parts={}",
+            CentralEconomyMod.LOGGER.info(
+                    "[CE-MARKET] snapshot built player={} market={} rows={} chars={} utf8Bytes={} parts={}",
                     player.getGameProfile().name(), endpoint.marketId(), rows, json.length(), utf8Bytes, frames.size());
             for (String frame : frames) {
                 ServerPlayNetworking.send(player, new MinerMarketSnapshotS2CPayload(frame));
@@ -151,8 +162,10 @@ public final class MinerMarketTransactions {
             CentralEconomyMod.LOGGER.info("[CE-MARKET] snapshot sent player={} market={} entity={} parts={}",
                     player.getGameProfile().name(), endpoint.marketId(), endpoint.entity().getUUID(), frames.size());
         } catch (RuntimeException e) {
-            CentralEconomyMod.LOGGER.error("[CE-MARKET] failed to build/send market snapshot to {}", player.getGameProfile().name(), e);
-            player.sendSystemMessage(Component.literal("[Central Economy] 시장 화면 전송 중 오류가 발생했습니다. latest.log를 확인하세요."), true);
+            CentralEconomyMod.LOGGER.error("[CE-MARKET] failed to build/send market snapshot to {}",
+                    player.getGameProfile().name(), e);
+            player.sendSystemMessage(Component.literal(
+                    "[Central Economy] 시장 화면 전송 중 오류가 발생했습니다. latest.log를 확인하세요."), true);
         }
     }
 
@@ -203,7 +216,7 @@ public final class MinerMarketTransactions {
 
     private static String retailReason(String reason) {
         if (reason == null) return "구매할 수 없습니다.";
-        if (reason.equals("sold_out")) return "중앙시장 공용 재고가 소진되었습니다.";
+        if (reason.equals("sold_out")) return "중앙시장 C/D 공용 재고가 모두 소진되었습니다.";
         if (reason.equals("not_retailed")) return "국가 판매 대상이 아닙니다.";
         if (reason.equals("inactive_cycle")) return "이번 계획주기에는 판매가 배정되지 않은 희소 품목입니다.";
         if (reason.startsWith("gate:market_warehouse")) return "시장 창고 조건이 필요합니다.";

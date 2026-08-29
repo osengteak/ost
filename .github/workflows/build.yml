@@ -64,9 +64,9 @@ jobs:
             echo "No installable JAR found in build/libs" | tee -a build-output.log
             exit 1
           fi
-          cp "$JAR" dist/central-economy-1.0.2.jar
+          cp "$JAR" dist/central-economy-1.0.3.jar
           echo "Installable JAR: $JAR" | tee -a build-output.log
-          sha256sum dist/central-economy-1.0.2.jar | tee dist/SHA256.txt
+          sha256sum dist/central-economy-1.0.3.jar | tee dist/SHA256.txt
 
       - name: Upload installable JAR
         if: success()

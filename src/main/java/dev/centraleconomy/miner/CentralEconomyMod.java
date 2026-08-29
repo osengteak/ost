@@ -29,6 +29,6 @@ public final class CentralEconomyMod implements ModInitializer {
         MinerInteractionService.initialize();
         MinerEmploymentService.initialize();
         CentralEconomyCommands.initialize();
-        LOGGER.info("Central Economy 1.0.2 initialized: 10 workstation professions + wandering trader market");
+        LOGGER.info("Central Economy 1.0.3 initialized: ABCD economy + 10 workstation professions + wandering trader market");
     }
 }

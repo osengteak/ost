@@ -1,0 +1,45 @@
+Central Economy v1.0.3 PATCH
+=============================
+
+Base: Central Economy v1.0.2 source tree
+Target: Minecraft Java 26.2 / Fabric Loader 0.19.3 / Fabric API 0.156.0+26.2 / Java 25
+
+HOW TO APPLY
+1. Close Minecraft.
+2. Extract this ZIP directly over your existing repository root:
+   Documents\GitHub\ost
+3. Allow overwrite/replace for files in the ZIP.
+4. GitHub Desktop -> review changes -> Commit to main -> Push origin.
+5. GitHub Actions -> wait for the Build Central Economy workflow.
+6. The build is considered compile-valid only if all validation/self-test/build steps are green.
+7. Download the central-economy-jar artifact and install only the new central-economy-1.0.3.jar.
+
+IMPORTANT
+- This archive is a SOURCE PATCH, not the compiled Minecraft JAR.
+- Do not delete unchanged v1.0.2 source/resources before applying it. The patch intentionally contains only changed/new files.
+- The validator is designed to run after the patch is overlaid onto the complete repository.
+- Runtime Minecraft behavior still requires in-game testing even after GitHub Actions is green.
+
+INTENDED v1.0.3 CHANGES
+- economy_plan schema 4 and automatic config migration from older schema.
+- A/B per-commodity quota preserved.
+- New player x market x cycle A/B profession-wide emerald caps.
+- C planned retail stock preserved.
+- New D expensive overflow retail stock.
+- Disabled duplicate commodities are hidden/rejected server-side.
+- Vanilla adult villager personal trading is blocked only at the interaction branch that would open trading.
+- Existing Central Economy employment-contract authority is preserved.
+- Existing CE recruitment condition (unemployed villager only) is preserved.
+- Wandering trader continues to open the Central Economy misc market.
+- Fish/axolotl bucket procurement can return empty buckets.
+- Existing 4096-char chunked market snapshot transport is preserved.
+- Market saved-data migration preserves valid v1.0.2 employment claims/turnover/flags while recreating incompatible per-cycle economy state.
+
+CORE POLICY VALUES
+- Normal procurement jobs: A profession cap 12E/cycle, B profession cap 96E/cycle.
+- Wandering trader: A 6E/cycle, B 12E/cycle.
+- B item quotas: large finite quotas based on the finalized policy dataset.
+- D stock: finite high-volume overflow supply; progression/special products do not receive D.
+
+KNOWN VALIDATION LIMITATION IN THIS CHAT ENVIRONMENT
+The complete Fabric/Loom build could not be executed here because this runtime does not provide the project's Java 25/Gradle/Fabric dependency environment. GitHub Actions is therefore the authoritative compile check. Pure/static project invariants and the final economy data were checked while constructing this patch.

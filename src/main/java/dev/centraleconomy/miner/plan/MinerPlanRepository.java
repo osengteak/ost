@@ -31,7 +31,6 @@ public final class MinerPlanRepository {
             Files.createDirectories(configPath.getParent());
             JsonObject bundled = readBundled();
             int bundledSchema = requiredInt(bundled, "schema");
-
             if (Files.notExists(configPath)) {
                 writeConfig(bundled);
             } else {
@@ -52,7 +51,6 @@ public final class MinerPlanRepository {
                     CentralEconomyMod.LOGGER.info("Migrated economy_plan schema {} -> {}", existingSchema, bundledSchema);
                 }
             }
-
             try (Reader reader = Files.newBufferedReader(configPath, StandardCharsets.UTF_8)) {
                 current = parse(JsonParser.parseReader(reader).getAsJsonObject());
             }
@@ -87,7 +85,6 @@ public final class MinerPlanRepository {
         int cycleDays = requiredInt(root, "planning_cycle_days");
         JsonObject marketsJson = root.getAsJsonObject("markets");
         if (marketsJson == null || marketsJson.isEmpty()) throw new IllegalArgumentException("markets missing");
-
         Map<String, MarketPlan> markets = new LinkedHashMap<>();
         for (Map.Entry<String, JsonElement> marketEntry : marketsJson.entrySet()) {
             String marketId = marketEntry.getKey();
@@ -95,8 +92,13 @@ public final class MinerPlanRepository {
             String display = mo.get("display_name").getAsString();
             String workstation = mo.has("workstation") && !mo.get("workstation").isJsonNull()
                     ? mo.get("workstation").getAsString() : "";
-
+            ProcurementJobCaps jobCaps = mo.has("procurement_job_caps")
+                    ? jobCaps(mo.getAsJsonObject("procurement_job_caps"))
+                    : ProcurementJobCaps.UNLIMITED;
             JsonObject commoditiesJson = mo.getAsJsonObject("commodities");
+            if (commoditiesJson == null || commoditiesJson.isEmpty()) {
+                throw new IllegalArgumentException("commodities missing for market " + marketId);
+            }
             Map<String, CommodityPlan> commodities = new LinkedHashMap<>();
             for (Map.Entry<String, JsonElement> entry : commoditiesJson.entrySet()) {
                 JsonObject o = entry.getValue().getAsJsonObject();
@@ -106,15 +108,28 @@ public final class MinerPlanRepository {
                 String kind = o.has("kind") ? o.get("kind").getAsString() : "item";
                 String variant = o.has("variant") ? o.get("variant").getAsString() : "";
                 int level = o.has("level") ? o.get("level").getAsInt() : 0;
+                boolean enabled = !o.has("enabled") || o.get("enabled").getAsBoolean();
                 TierPlan a = o.has("procurement_a") ? tier(o.getAsJsonObject("procurement_a")) : null;
                 TierPlan b = o.has("procurement_b") ? tier(o.getAsJsonObject("procurement_b")) : null;
                 RetailPlan retail = o.has("retail") ? retail(o.getAsJsonObject("retail")) : null;
+                RetailPlan overflow = o.has("retail_overflow") ? retail(o.getAsJsonObject("retail_overflow")) : null;
+                String containerReturn = o.has("procurement_container_return")
+                        ? o.get("procurement_container_return").getAsString() : "";
                 commodities.put(commodityId,
-                        new CommodityPlan(commodityId, itemId, displayName, kind, variant, level, a, b, retail));
+                        new CommodityPlan(commodityId, itemId, displayName, kind, variant, level,
+                                a, b, retail, overflow, enabled, containerReturn));
             }
-            markets.put(marketId, new MarketPlan(marketId, display, workstation, commodities));
+            markets.put(marketId, new MarketPlan(marketId, display, workstation, commodities, jobCaps));
         }
         return new MinerPlan(schema, cycleDays, markets);
+    }
+
+    private static ProcurementJobCaps jobCaps(JsonObject o) {
+        int a = o.has("a_emeralds_per_player_per_cycle")
+                ? o.get("a_emeralds_per_player_per_cycle").getAsInt() : 0;
+        int b = o.has("b_emeralds_per_player_per_cycle")
+                ? o.get("b_emeralds_per_player_per_cycle").getAsInt() : 0;
+        return new ProcurementJobCaps(a, b);
     }
 
     private static TierPlan tier(JsonObject o) {
@@ -132,10 +147,12 @@ public final class MinerPlanRepository {
         if (!o.has(key)) throw new IllegalArgumentException("missing " + key);
         return o.get(key).getAsString();
     }
+
     private static int requiredInt(JsonObject o, String key) {
         if (!o.has(key)) throw new IllegalArgumentException("missing " + key);
         return o.get(key).getAsInt();
     }
+
     private static double requiredDouble(JsonObject o, String key) {
         if (!o.has(key)) throw new IllegalArgumentException("missing " + key);
         return o.get(key).getAsDouble();

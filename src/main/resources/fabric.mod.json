@@ -3,7 +3,7 @@
   "id": "central_economy",
   "version": "${version}",
   "name": "Central Economy",
-  "description": "Central-planned specialization economy for Minecraft 26.2 with ten workstation professions, a wandering-trader miscellaneous market, A/B procurement quotas, global stock, persistence and a unified searchable market UI.",
+  "description": "Central-planned specialization economy for Minecraft 26.2 with ten workstation professions, a wandering-trader miscellaneous market, A/B procurement, C/D retail, profession-wide procurement caps, shared stock, persistence and a unified searchable market UI.",
   "authors": ["OpenAI-assisted project"],
   "license": "MIT",
   "environment": "*",
